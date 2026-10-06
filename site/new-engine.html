@@ -1,0 +1,702 @@
+<!doctype html>
+<html lang="ja">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1, viewport-fit=cover">
+<style>body{margin:0}[hidden]{display:none!important}img{max-width:100%}</style>
+<title>Kagura 3D構成図</title>
+<link rel="preconnect" href="https://fonts.googleapis.com">
+<link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+<link rel="stylesheet" href="https://fonts.googleapis.com/css2?family=Dela+Gothic+One&family=JetBrains+Mono:wght@500;700&family=Zen+Kaku+Gothic+New:wght@400;500;700&display=swap">
+<style>
+/* Layout: full-bleed 3D stage; a floating instrument panel on the left (bottom sheet on phones). Deliberately single dark look, like a GPU debugger. */
+:root {
+  --bg: #080C14;
+  --panel: rgba(13, 19, 31, 0.88);
+  --panel-solid: #0E1521;
+  --fg: #E6ECF5;
+  --muted: #8E9BB1;
+  --line: #233049;
+  --accent: #5AA9F0;
+  --c-engine: #4C9BE8;
+  --c-editor: #9A8CF0;
+  --c-runtime: #34C3A0;
+  --c-data: #E3A63E;
+  --c-ai: #EE7D5E;
+  --c-hw: #9AA3B2;
+  --f-display: 'Dela Gothic One', 'Zen Kaku Gothic New', 'Noto Sans CJK JP', sans-serif;
+  --f-body: 'Zen Kaku Gothic New', 'Noto Sans CJK JP', 'Hiragino Sans', 'Yu Gothic', sans-serif;
+  --f-mono: 'JetBrains Mono', ui-monospace, 'Cascadia Mono', Consolas, monospace;
+  color-scheme: dark;
+}
+html, body { height: 100%; }
+body { background: var(--bg); color: var(--fg); font-family: var(--f-body); overflow: hidden; }
+#stage { position: fixed; inset: 0; }
+#stage canvas { display: block; }
+#labels { position: absolute; inset: 0; pointer-events: none; }
+
+.lbl {
+  font-family: var(--f-mono); font-size: 12px; font-weight: 700; line-height: 1.25;
+  padding: 4px 8px; border-radius: 6px; white-space: nowrap; text-align: center;
+  background: rgba(8, 12, 20, 0.8); border: 1px solid var(--c); color: var(--fg);
+  pointer-events: auto; cursor: pointer; transition: opacity .25s, box-shadow .25s;
+}
+.lbl small { display: block; font-family: var(--f-body); font-weight: 500; font-size: 10.5px; color: var(--muted); }
+.lbl.dim { opacity: .22; }
+.lbl.on { box-shadow: 0 0 0 1px var(--c), 0 0 18px var(--c); }
+.lbl:focus-visible { outline: 2px solid var(--fg); outline-offset: 2px; }
+.zone {
+  font-family: var(--f-body); font-size: 11px; font-weight: 700; letter-spacing: .12em;
+  color: var(--c); white-space: nowrap; pointer-events: none; opacity: .9;
+  text-shadow: 0 0 6px var(--bg), 0 0 2px var(--bg);
+}
+.zone.big { font-family: var(--f-mono); font-size: 15px; letter-spacing: .04em; }
+
+#panel {
+  position: absolute; left: 16px; top: calc(16px + env(safe-area-inset-top, 0px)); bottom: calc(16px + env(safe-area-inset-bottom, 0px));
+  width: min(360px, calc(100% - 32px)); overflow-y: auto; overscroll-behavior: contain;
+  background: var(--panel); border: 1px solid var(--line); border-radius: 14px;
+  backdrop-filter: blur(10px); -webkit-backdrop-filter: blur(10px);
+  padding: 18px 18px 20px; display: flex; flex-direction: column; gap: 16px;
+}
+.eyebrow { font-family: var(--f-mono); font-size: 11px; letter-spacing: .1em; color: var(--muted); text-transform: uppercase; }
+.home { display: inline-flex; align-items: center; gap: 6px; margin: 0 0 10px; padding: 6px 10px; border: 1px solid var(--line); border-radius: 999px; font: 700 11px/1 var(--f-mono); letter-spacing: .08em; color: var(--muted); text-decoration: none; }
+.home:hover { color: var(--fg); border-color: var(--accent); }
+.home:focus-visible { outline: 2px solid var(--fg); outline-offset: 2px; }
+h1 { font-family: var(--f-display); font-weight: 400; font-size: 24px; line-height: 1.25; margin: 4px 0 0; text-wrap: balance; }
+.lead { font-size: 13px; line-height: 1.7; color: var(--muted); margin: 6px 0 0; }
+
+.sec-title { font-size: 11px; font-weight: 700; letter-spacing: .12em; color: var(--muted); margin: 0 0 8px; }
+.chips { display: flex; flex-wrap: wrap; gap: 6px; }
+.chip {
+  font: 500 12.5px/1 var(--f-body); color: var(--fg); background: transparent;
+  border: 1px solid var(--line); border-radius: 999px; padding: 8px 11px; cursor: pointer;
+  display: inline-flex; align-items: center; gap: 6px;
+}
+.chip i { width: 8px; height: 8px; border-radius: 50%; background: var(--c); display: inline-block; }
+.chip:hover { border-color: var(--c, var(--accent)); }
+.chip[aria-pressed="true"] { background: color-mix(in srgb, var(--c, var(--accent)) 22%, transparent); border-color: var(--c, var(--accent)); }
+.chip:focus-visible, .ctl:focus-visible, .steps li:focus-visible { outline: 2px solid var(--fg); outline-offset: 2px; }
+
+.controls { display: flex; gap: 6px; }
+.ctl {
+  font: 700 12px/1 var(--f-body); color: var(--fg); background: #141D2D; border: 1px solid var(--line);
+  border-radius: 8px; padding: 9px 12px; cursor: pointer;
+}
+.ctl:hover { border-color: var(--accent); }
+.ctl.grow { flex: 1; }
+.ctl[disabled] { opacity: .4; cursor: default; }
+
+.steps { list-style: none; margin: 0; padding: 0; display: flex; flex-direction: column; gap: 4px; counter-reset: s; }
+.steps li {
+  counter-increment: s; display: grid; grid-template-columns: 26px 1fr; gap: 2px 8px; align-items: start;
+  padding: 8px 10px; border-radius: 8px; border: 1px solid transparent; cursor: pointer; transition: background .2s, border-color .2s;
+}
+.steps li::before {
+  content: counter(s); grid-row: span 2; font: 700 11px/22px var(--f-mono); text-align: center;
+  width: 22px; height: 22px; border-radius: 50%; border: 1px solid var(--line); color: var(--muted);
+}
+.steps li b { font-size: 13px; font-weight: 700; }
+.steps li span { font-size: 12px; line-height: 1.6; color: var(--muted); min-width: 0; }
+.steps li.done::before { border-color: var(--c); color: var(--c); }
+.steps li.cur { background: color-mix(in srgb, var(--c) 14%, transparent); border-color: color-mix(in srgb, var(--c) 55%, transparent); }
+.steps li.cur::before { background: var(--c); color: var(--bg); border-color: var(--c); }
+.steps li.cur span { color: var(--fg); }
+
+.overview p { font-size: 12.5px; line-height: 1.75; color: var(--muted); margin: 0 0 8px; }
+.overview p b { color: var(--fg); font-weight: 700; }
+
+.card { border: 1px solid var(--line); border-radius: 10px; padding: 12px 14px; background: #0B111C; }
+.card .k { font-size: 11px; color: var(--c); letter-spacing: .08em; font-weight: 700; }
+.card h2 { font-family: var(--f-mono); font-size: 16px; margin: 4px 0 2px; }
+.card .sub { font-size: 12px; color: var(--muted); margin: 0 0 6px; }
+.card ul { margin: 0; padding-left: 1.1em; display: flex; flex-direction: column; gap: 4px; }
+.card li { font-size: 12.5px; line-height: 1.6; }
+
+.legend { display: grid; grid-template-columns: repeat(2, minmax(0, 1fr)); gap: 6px 12px; }
+.legend div { font-size: 12px; color: var(--muted); display: flex; align-items: center; gap: 6px; }
+.legend i { width: 10px; height: 10px; border-radius: 3px; background: var(--c); display: inline-block; flex: none; }
+
+#hint {
+  position: absolute; right: 16px; bottom: calc(16px + env(safe-area-inset-bottom, 0px));
+  font-size: 12px; color: var(--muted); background: var(--panel); border: 1px solid var(--line);
+  border-radius: 8px; padding: 8px 10px; display: flex; gap: 10px; align-items: center;
+}
+
+@media (max-width: 720px) {
+  #panel { top: auto; left: 16px; right: 16px; width: auto; height: 46%; padding: 14px 14px 16px; gap: 12px; }
+  h1 { font-size: 19px; }
+  .lead { display: none; }
+  #hint { display: none; }
+  .lbl { font-size: 10.5px; padding: 3px 6px; }
+  .lbl small { display: none; }
+  .zone { font-size: 9.5px; }
+}
+@media (prefers-reduced-motion: reduce) { .lbl, .steps li { transition: none; } }
+</style>
+</head>
+<body>
+
+<div id="stage"><div id="labels"></div></div>
+
+<aside id="panel" aria-label="操作パネル">
+  <header>
+    <a class="home" href="./">← トップ</a>
+    <div class="eyebrow">DX12 · C++ · Component 指向 · 設計案</div>
+    <h1>Kagura 3D構成図</h1>
+    <p class="lead">下から「基盤 → Core → Runtime」が Engine.dll にまとまり、その上に Editor / Player / GameScripts が載ります。流れを選ぶと処理が光って進みます。</p>
+  </header>
+
+  <section>
+    <h3 class="sec-title">処理の流れ</h3>
+    <div class="chips" id="flows" role="group" aria-label="表示する流れ"></div>
+  </section>
+
+  <section class="controls" id="controls">
+    <button class="ctl" id="prev" type="button">◀ 前</button>
+    <button class="ctl grow" id="play" type="button">一時停止</button>
+    <button class="ctl" id="next" type="button">次 ▶</button>
+    <button class="ctl" id="reset" type="button">視点</button>
+  </section>
+
+  <section id="stepsWrap">
+    <h3 class="sec-title" id="stepsTitle">全体</h3>
+    <ol class="steps" id="steps"></ol>
+    <div class="overview" id="overview">
+      <p><b>Engine.dll(青い枠)</b> の中に、基盤層・Core・Runtime モジュールが入っています。Editor のコードは含まれないので、配布用の Player.exe と分けられます。</p>
+      <p><b>右の棚</b> はプロジェクトフォルダ(Assets/・Scripts/・Library/)、<b>空中の球</b> は外部AIとローカルLLMです。</p>
+      <p>線を流れる光は、上で選べる6つの処理です。ブロックをクリックすると役割が表示されます。</p>
+    </div>
+  </section>
+
+  <section id="detail" hidden>
+    <div class="card" id="card"></div>
+  </section>
+
+  <section>
+    <h3 class="sec-title">色の意味</h3>
+    <div class="legend">
+      <div style="--c:var(--c-engine)"><i></i>エンジン本体</div>
+      <div style="--c:var(--c-runtime)"><i></i>ランタイム / ゲーム</div>
+      <div style="--c:var(--c-editor)"><i></i>Editor / ツール</div>
+      <div style="--c:var(--c-data)"><i></i>データ / キャッシュ</div>
+      <div style="--c:var(--c-ai)"><i></i>AI 連携</div>
+      <div style="--c:var(--c-hw)"><i></i>ハードウェア</div>
+    </div>
+  </section>
+</aside>
+
+<div id="hint">ドラッグで回転 · 右ドラッグで移動 · ホイールでズーム</div>
+
+<script type="importmap">
+{ "imports": {
+  "three": "https://cdn.jsdelivr.net/npm/three@0.160.0/build/three.module.js",
+  "three/addons/": "https://cdn.jsdelivr.net/npm/three@0.160.0/examples/jsm/"
+} }
+</script>
+<script type="module">
+import * as THREE from 'three';
+import { OrbitControls } from 'three/addons/controls/OrbitControls.js';
+import { CSS2DRenderer, CSS2DObject } from 'three/addons/renderers/CSS2DRenderer.js';
+import { RoundedBoxGeometry } from 'three/addons/geometries/RoundedBoxGeometry.js';
+
+const CSSV = getComputedStyle(document.documentElement);
+const cv = n => CSSV.getPropertyValue(n).trim();
+const CAT = {
+  engine: cv('--c-engine'), runtime: cv('--c-runtime'), editor: cv('--c-editor'),
+  data: cv('--c-data'), ai: cv('--c-ai'), hw: cv('--c-hw'),
+};
+const CAT_NAME = { engine: 'エンジン本体', runtime: 'ランタイム / ゲーム', editor: 'Editor.exe', data: 'プロジェクトフォルダ', ai: 'AI 連携', hw: 'ハードウェア' };
+
+// ---------------- data ----------------
+const NODES = [
+  { id: 'gpu', name: 'GPU', sub: 'DX12 対応 GPU', cat: 'hw', pos: [2, -1.9, 0], shape: 'gpu',
+    desc: ['RHI が記録したコマンドを実行', 'Present でフレームを画面へ', 'DXR / Mesh Shader の対応状況は未決事項'] },
+  { id: 'platform', name: 'Platform', sub: 'Win32 / 入力 / スレッド', cat: 'engine', pos: [-2, 0, 0],
+    desc: ['ウィンドウ・入力・ファイル・スレッド/ジョブを提供', 'Windows 専用。他 OS 向けの抽象化は作らない'] },
+  { id: 'rhi', name: 'RHI', sub: 'D3D12 の薄いラッパー', cat: 'engine', pos: [2, 0, 0],
+    desc: ['コマンドリスト・PSO・ディスクリプタ・フェンスを扱いやすくした層', 'GPU が使い終わるまで解放しない遅延削除キュー', '開発中は Debug Layer と GPU-Based Validation を常時 ON'] },
+  { id: 'reflect', name: 'Reflection', sub: 'Core: 型情報 / 直列化', cat: 'engine', pos: [-2, 1.5, 0],
+    desc: ['REFLECT_CLASS / REFLECT_FIELD のマクロで型とフィールドを登録', 'Inspector・保存・ホットリロード・AI 連携のすべてが依存する土台', 'JSON Schema を出力して AI の Tool 定義に使う'] },
+  { id: 'core', name: 'Core', sub: '数学 / メモリ / ログ / Job', cat: 'engine', pos: [2, 1.5, 0],
+    desc: ['他のモジュールに依存しない最下層', 'DLL 境界の確保はエンジンのアロケータ経由', '全ターゲットを /MD(動的 CRT)で統一'] },
+  { id: 'scene', name: 'Scene', sub: 'GameObject + Component', cat: 'runtime', pos: [-3.6, 3, 1.25],
+    desc: ['Unity 風の GameObject + Component(ECS は不採用)', '組み込み Component は型ごとのプールで連続配置', '参照は GUID / 世代つきハンドル'] },
+  { id: 'physics', name: 'Physics', sub: 'Bullet / FixedUpdate', cat: 'runtime', pos: [-1.2, 3, 1.25],
+    desc: ['固定タイムステップで Bullet を進める', '物理→Transform と、キネマティック時の Transform→物理を同期', 'Bullet の型は Public ヘッダに出さない'] },
+  { id: 'renderer', name: 'Renderer', sub: 'Render Graph / PBR', cat: 'engine', pos: [1.2, 3, 1.25],
+    desc: ['R1 Forward+PBR → R2 Render Graph → R3 Bindless → R4 GPU駆動 → R5 DXR', 'リソースバリアは Render Graph が自動で挿入'] },
+  { id: 'introspect', name: 'Introspection API', sub: 'AI 用の唯一の入口', cat: 'engine', pos: [3.6, 3, 1.25],
+    desc: ['リフレクション・シーン階層・アセット DB・Console を公開', 'D3D12 や Bullet の内部型には触らせない', '書き込みは Editor の Command を経由させる'] },
+  { id: 'scripthost', name: 'Script Host', sub: 'DLL ロード / 再生成', cat: 'runtime', pos: [-3.6, 3, -1.25],
+    desc: ['GameScripts.dll をロード・アンロードする', 'ファクトリで Component インスタンスを作り直す', 'DLL 内の static は消えるので、状態はエンジン側に持つ'] },
+  { id: 'asset', name: 'Asset', sub: '独自形式の読込のみ', cat: 'data', pos: [-1.2, 3, -1.25],
+    desc: ['Library/ の独自形式だけを読む', 'Assimp / DirectXTex は実行時に不要なので起動が速い', 'アセットは GUID で参照'] },
+  { id: 'dxc', name: 'Shader Compiler', sub: 'DXC / SM 6.6+', cat: 'engine', pos: [1.2, 3, -1.25],
+    desc: ['HLSL をファイル監視して動的にコンパイル', 'include ハンドラを自前実装して依存関係を追跡', '失敗時はピンクのフォールバックシェーダ'] },
+
+  { id: 'player', name: 'Player.exe', sub: '配布ビルド', cat: 'runtime', pos: [-5, 6, 1],
+    desc: ['ウィンドウとメインループだけを持つ', 'Editor のコードを含まない配布用の実行ファイル'] },
+  { id: 'scripts', name: 'GameScripts.dll', sub: 'ユーザーの C++', cat: 'runtime', pos: [-2.2, 6, 1],
+    desc: ['ユーザーが書く C++ Component', 'Engine の Public ヘッダだけを include', 'ホットリロードの対象'] },
+  { id: 'editorui', name: 'Editor UI', sub: 'ImGui / Undo・Redo', cat: 'editor', pos: [1.6, 6, 1.2],
+    desc: ['Hierarchy / Inspector / Scene View / Console', 'Inspector はリフレクションから自動生成', '変更はすべて Command として記録(Undo/Redo)'] },
+  { id: 'importer', name: 'Importer', sub: 'Assimp / DirectXTex', cat: 'editor', pos: [1.6, 6, -1],
+    desc: ['元ファイルを独自形式へ変換(Editor 専用)', 'メッシュは Assimp、テクスチャは DirectXTex で BC7 / ミップ生成'] },
+  { id: 'build', name: 'Build 起動', sub: 'CMake + Ninja', cat: 'editor', pos: [4.4, 6, -1],
+    desc: ['子プロセスでスクリプト DLL をビルド', 'ログは Editor の Console に流す'] },
+  { id: 'bridge', name: 'AI Bridge', sub: 'MCP Server / Provider', cat: 'ai', pos: [4.4, 6, 1.2],
+    desc: ['Editor 内の MCP サーバー(127.0.0.1 + トークン)', 'LLM Provider 抽象でローカル / 外部を切り替え', 'Engine.dll や Player には入れない'] },
+  { id: 'context', name: 'Context Store', sub: '.ai/ 中立形式', cat: 'ai', pos: [7, 6, 0.1],
+    desc: ['project.md / decisions/ / glossary.md / sessions/ / index/', '各 AI 向けの形式(CLAUDE.md など)へ変換して渡す'] },
+
+  { id: 'extai', name: '外部AI', sub: 'Claude Code など', cat: 'ai', pos: [3.4, 8.7, 2.6], shape: 'orb',
+    desc: ['MCP クライアントとして Editor に接続してくる', '大きな設計・実装はこちらに任せる'] },
+  { id: 'gemma', name: 'Gemma E4B', sub: 'オフライン LLM', cat: 'ai', pos: [6.8, 8.7, 2.6], shape: 'orb',
+    desc: ['llama-server を子プロセスで起動(OpenAI 互換 API)', '推論のクラッシュがエンジンに波及しない', 'VRAM 競合に注意。軽い作業を担当'] },
+
+  { id: 'assets', name: 'Assets/', sub: '.fbx .png .hlsl', cat: 'data', pos: [8.4, 2.2, 2.4], shape: 'disk',
+    desc: ['ユーザーが置く元ファイル', 'Git 管理する'] },
+  { id: 'src', name: 'Scripts/', sub: 'C++ ソース', cat: 'data', pos: [8.4, 2.2, 0.8], shape: 'disk',
+    desc: ['GameScripts.dll のソースコード', '保存するとホットリロードが始まる'] },
+  { id: 'library', name: 'Library/', sub: '独自形式キャッシュ', cat: 'data', pos: [8.4, 2.2, -0.8], shape: 'disk',
+    desc: ['インポート結果の独自形式と GUID + .meta', '再生成できるので Git 管理外'] },
+  { id: 'shadercache', name: 'ShaderCache', sub: 'DXIL + リフレクション', cat: 'data', pos: [8.4, 2.2, -2.4], shape: 'disk',
+    desc: ['キー = ソース + include + defines + profile + DXC 版', '一致すればコンパイルを省略'] },
+];
+const NODE = Object.fromEntries(NODES.map(n => [n.id, n]));
+
+const FLOWS = [
+  { id: 'frame', name: '1フレーム', color: '#34C3A0', steps: [
+    ['platform', 'Input', 'Win32 から入力を集める'],
+    ['physics', 'FixedUpdate', '固定タイムステップで Bullet を進め、結果を Transform に反映'],
+    ['scene', 'Update / LateUpdate', '各 Component と GameScripts の処理。カメラ追従などで Transform を確定'],
+    ['renderer', 'Render', 'Render Graph を組み立て、バリアを自動で挿入'],
+    ['rhi', 'コマンド記録', 'コマンドリストを記録して実行キューへ'],
+    ['gpu', 'Present', 'フェンスで同期し、フレームリソースを回転'],
+  ]},
+  { id: 'asset', name: 'アセット import', color: '#E3A63E', steps: [
+    ['assets', '元ファイル', '.fbx / .gltf / .png を Assets/ に置く'],
+    ['importer', 'インポート', 'Assimp でメッシュ、DirectXTex で BC7 圧縮とミップ生成'],
+    ['library', 'キャッシュ保存', '独自形式 + GUID / .meta。元ファイルのハッシュで再インポートを判定'],
+    ['asset', 'Runtime 読込', '実行時は独自形式だけを読むので速い'],
+    ['renderer', '描画パスへ', 'メッシュとテクスチャを描画に使う'],
+    ['rhi', 'GPU へ転送', 'アップロードヒープ経由で GPU リソースにする'],
+  ]},
+  { id: 'shader', name: 'HLSL ビルド', color: '#F0CF5A', steps: [
+    ['assets', '.hlsl 保存', 'ファイル監視で変更を検知(include 先も追跡)'],
+    ['dxc', 'DXC コンパイル', 'Shader Model 6.6 以上。FXC は使わない'],
+    ['shadercache', 'キャッシュ照合', 'キーが一致すれば再利用。新しい DXIL とリフレクションを保存'],
+    ['renderer', 'PSO 再生成', 'リフレクションからルートシグネチャ等を構築。失敗時はピンク'],
+    ['rhi', '反映', '次のフレームから新しい PSO で描画'],
+  ]},
+  { id: 'hot', name: 'ホットリロード', color: '#A895F5', steps: [
+    ['src', '.cpp 保存', 'Editor がスクリプトの変更を検知'],
+    ['build', 'ビルド', '子プロセスで CMake + Ninja。ログは Console へ'],
+    ['scripts', '一意名でコピー', 'Game_0001.dll にコピーして DLL / PDB のロックを回避'],
+    ['scripthost', '入れ替え準備', '旧 DLL をアンロードする前に状態を退避'],
+    ['reflect', 'シリアライズ', 'リフレクション経由で全 Component のフィールドを保存'],
+    ['scripthost', '新 DLL をロード', 'ファクトリで全インスタンスを作り直す'],
+    ['scene', '状態を復元', 'デシリアライズして、再生中のシーンにそのまま戻す'],
+  ]},
+  { id: 'mcp', name: 'AI 連携 (MCP)', color: '#EE7D5E', steps: [
+    ['extai', '接続', '外部 AI が MCP(JSON-RPC)で Editor に接続'],
+    ['bridge', 'MCP Server', '127.0.0.1 のみ + 起動ごとのトークンで認証'],
+    ['introspect', '情報を取得', 'シーン階層・Component・ログ・ビルドエラーを読む'],
+    ['reflect', 'スキーマ生成', 'リフレクションから Tool の JSON Schema を自動生成'],
+    ['editorui', 'Command で変更', '書き込みは Undo できる Command 経由。危険な操作は承認ダイアログ'],
+    ['scene', '反映', 'シーンが変わる。Ctrl+Z で元に戻せる'],
+  ]},
+  { id: 'offline', name: 'オフライン AI', color: '#F4A68C', steps: [
+    ['context', 'コンテキスト収集', '.ai/ の規約・設計判断と、今の Editor の状態を集める'],
+    ['bridge', 'プロンプト組立', 'トークン予算内に要約・検索して短く組み直す'],
+    ['gemma', '推論', 'Tool を絞ったローカル用プロファイル。GBNF で出力形式を制約'],
+    ['bridge', '結果を検証', '返ってきた JSON を検証してから実行に回す'],
+    ['introspect', '操作', 'Introspection API 経由でエンジンへ'],
+    ['editorui', 'Command', 'Undo 可能な形で反映'],
+  ]},
+];
+
+// ---------------- three setup ----------------
+const stage = document.getElementById('stage');
+const panel = document.getElementById('panel');
+const renderer = new THREE.WebGLRenderer({ antialias: true });
+renderer.setPixelRatio(Math.min(window.devicePixelRatio, 2));
+renderer.setClearColor(cv('--bg'));
+stage.prepend(renderer.domElement);
+
+const labelRenderer = new CSS2DRenderer({ element: document.getElementById('labels') });
+
+const scene = new THREE.Scene();
+scene.fog = new THREE.Fog(cv('--bg'), 26, 58);
+const camera = new THREE.PerspectiveCamera(38, 1, 0.1, 200);
+const HOME = { pos: new THREE.Vector3(14.5, 11.5, 16.5), target: new THREE.Vector3(1.8, 3.0, -0.3) };
+camera.position.copy(HOME.pos);
+
+const controls = new OrbitControls(camera, renderer.domElement);
+controls.target.copy(HOME.target);
+controls.enableDamping = true;
+controls.dampingFactor = 0.08;
+controls.minDistance = 7;
+controls.maxDistance = 45;
+controls.maxPolarAngle = Math.PI * 0.49;
+
+scene.add(new THREE.HemisphereLight(0xbcd4ff, 0x0b0f17, 1.0));
+const sun = new THREE.DirectionalLight(0xffffff, 1.4);
+sun.position.set(6, 14, 9);
+scene.add(sun);
+
+// ground grid
+const grid = new THREE.GridHelper(40, 40, 0x1a2539, 0x111a2a);
+grid.position.y = -2.6;
+scene.add(grid);
+
+function addLabel(html, pos, cls, color) {
+  const el = document.createElement('div');
+  el.className = cls;
+  el.innerHTML = html;
+  el.style.setProperty('--c', color);
+  const obj = new CSS2DObject(el);
+  obj.position.copy(pos);
+  scene.add(obj);
+  return el;
+}
+
+function plate(x0, x1, z0, z1, y, color, opacity = 0.35) {
+  const g = new THREE.BoxGeometry(x1 - x0, 0.06, z1 - z0);
+  const m = new THREE.MeshStandardMaterial({ color, transparent: true, opacity, roughness: 0.9 });
+  const mesh = new THREE.Mesh(g, m);
+  mesh.position.set((x0 + x1) / 2, y, (z0 + z1) / 2);
+  scene.add(mesh);
+  const e = new THREE.LineSegments(new THREE.EdgesGeometry(g), new THREE.LineBasicMaterial({ color, transparent: true, opacity: 0.55 }));
+  e.position.copy(mesh.position);
+  scene.add(e);
+}
+
+// Engine.dll layers
+plate(-5, 5, -2.2, 2.2, -0.45, 0x2b4a78, 0.28);
+plate(-5, 5, -2.2, 2.2, 1.05, 0x2b4a78, 0.28);
+plate(-5, 5, -2.2, 2.2, 2.55, 0x2b4a78, 0.28);
+addLabel('基盤層', new THREE.Vector3(-4.6, -0.42, 2.2), 'zone', CAT.engine);
+addLabel('Core', new THREE.Vector3(-4.6, 1.08, 2.2), 'zone', CAT.engine);
+addLabel('Runtime モジュール', new THREE.Vector3(-4.1, 2.58, 2.2), 'zone', CAT.engine);
+
+// Engine.dll cage
+{
+  const g = new THREE.BoxGeometry(10.8, 4.5, 5.2);
+  const pos = new THREE.Vector3(0, 1.5, 0);
+  const faces = new THREE.Mesh(g, new THREE.MeshBasicMaterial({ color: 0x4c9be8, transparent: true, opacity: 0.035, depthWrite: false }));
+  faces.position.copy(pos);
+  scene.add(faces);
+  const edges = new THREE.LineSegments(new THREE.EdgesGeometry(g), new THREE.LineBasicMaterial({ color: 0x4c9be8, transparent: true, opacity: 0.85 }));
+  edges.position.copy(pos);
+  scene.add(edges);
+  addLabel('Engine.dll', new THREE.Vector3(4.6, -0.75, 2.6), 'zone big', CAT.engine);
+}
+
+// top plates
+plate(-6.4, -0.8, -0.2, 2.2, 5.55, 0x1f6b58, 0.3);
+addLabel('実行ファイル / ゲーム', new THREE.Vector3(-3.6, 5.58, 2.2), 'zone', CAT.runtime);
+plate(0.2, 8.4, -2.2, 2.5, 5.55, 0x4a3f8c, 0.3);
+addLabel('Editor.exe', new THREE.Vector3(7.4, 5.58, -2.2), 'zone big', CAT.editor);
+// project shelf
+plate(7.4, 9.4, -3.3, 3.3, 1.95, 0x7a5717, 0.3);
+addLabel('プロジェクトフォルダ', new THREE.Vector3(8.4, 1.98, 3.3), 'zone', CAT.data);
+addLabel('AI', new THREE.Vector3(5.1, 9.9, 2.6), 'zone', CAT.ai);
+addLabel('ハードウェア', new THREE.Vector3(2, -2.55, 1.2), 'zone', CAT.hw);
+
+// dashed "links to Engine.dll"
+function dashed(a, b, color) {
+  const g = new THREE.BufferGeometry().setFromPoints([a, b]);
+  const l = new THREE.Line(g, new THREE.LineDashedMaterial({ color, dashSize: 0.18, gapSize: 0.14, transparent: true, opacity: 0.7 }));
+  l.computeLineDistances();
+  scene.add(l);
+}
+dashed(new THREE.Vector3(-5, 5.5, 1), new THREE.Vector3(-5, 3.75, 1), 0x4c9be8);
+dashed(new THREE.Vector3(-2.2, 5.5, 1), new THREE.Vector3(-2.2, 3.75, 1), 0x4c9be8);
+dashed(new THREE.Vector3(1, 5.5, 0), new THREE.Vector3(1, 3.75, 0), 0x4c9be8);
+dashed(new THREE.Vector3(2, -0.7, 0), new THREE.Vector3(2, -1.6, 0), 0x9aa3b2);
+
+// ---------------- nodes ----------------
+const pickables = [];
+const roundGeo = new RoundedBoxGeometry(1.9, 0.42, 1.05, 3, 0.09);
+const gpuGeo = new RoundedBoxGeometry(2.6, 0.55, 1.4, 3, 0.08);
+const diskGeo = new THREE.CylinderGeometry(0.72, 0.72, 0.3, 40);
+const orbGeo = new THREE.IcosahedronGeometry(0.52, 1);
+
+for (const n of NODES) {
+  const color = new THREE.Color(CAT[n.cat]);
+  const geo = n.shape === 'disk' ? diskGeo : n.shape === 'orb' ? orbGeo : n.shape === 'gpu' ? gpuGeo : roundGeo;
+  const mat = new THREE.MeshStandardMaterial({
+    color, roughness: 0.45, metalness: 0.15, emissive: color, emissiveIntensity: 0.18,
+    transparent: true, opacity: 1, flatShading: n.shape === 'orb',
+  });
+  const mesh = new THREE.Mesh(geo, mat);
+  mesh.position.set(...n.pos);
+  mesh.userData.id = n.id;
+  scene.add(mesh);
+  pickables.push(mesh);
+  n.mesh = mesh;
+  n.v = mesh.position.clone();
+  const lift = n.shape === 'orb' ? 0.78 : n.shape === 'disk' ? 0.5 : 0.55;
+  n.el = addLabel(`${n.name}<small>${n.sub}</small>`, n.v.clone().add(new THREE.Vector3(0, lift, 0)), 'lbl', CAT[n.cat]);
+  n.el.tabIndex = 0;
+  n.el.setAttribute('role', 'button');
+  n.el.setAttribute('aria-label', `${n.name}の説明を表示`);
+  n.el.addEventListener('click', e => { e.stopPropagation(); showDetail(n.id); });
+  n.el.addEventListener('keydown', e => { if (e.key === 'Enter' || e.key === ' ') { e.preventDefault(); showDetail(n.id); } });
+}
+
+// ---------------- edges ----------------
+function makeCurve(a, b) {
+  const p0 = NODE[a].v, p2 = NODE[b].v;
+  const dir = p2.clone().sub(p0);
+  const dist = dir.length();
+  const mid = p0.clone().add(p2).multiplyScalar(0.5);
+  mid.y += 0.45 + dist * 0.1;
+  let perp = new THREE.Vector3(-dir.z, 0, dir.x);
+  if (perp.lengthSq() < 1e-4) perp.set(1, 0, 0);
+  perp.normalize().multiplyScalar(a < b ? 0.35 : -0.35);
+  mid.add(perp);
+  return new THREE.QuadraticBezierCurve3(p0.clone(), mid, p2.clone());
+}
+
+const glowTex = (() => {
+  const c = document.createElement('canvas'); c.width = c.height = 64;
+  const g = c.getContext('2d');
+  const grd = g.createRadialGradient(32, 32, 0, 32, 32, 32);
+  grd.addColorStop(0, 'rgba(255,255,255,1)');
+  grd.addColorStop(0.25, 'rgba(255,255,255,0.55)');
+  grd.addColorStop(1, 'rgba(255,255,255,0)');
+  g.fillStyle = grd; g.fillRect(0, 0, 64, 64);
+  return new THREE.CanvasTexture(c);
+})();
+function makeSpark(color, size) {
+  const s = new THREE.Sprite(new THREE.SpriteMaterial({ map: glowTex, color, transparent: true, blending: THREE.AdditiveBlending, depthWrite: false }));
+  s.scale.setScalar(size);
+  scene.add(s);
+  return s;
+}
+
+for (const f of FLOWS) {
+  f.segs = [];
+  for (let i = 0; i < f.steps.length - 1; i++) {
+    const curve = makeCurve(f.steps[i][0], f.steps[i + 1][0]);
+    const tube = new THREE.Mesh(new THREE.TubeGeometry(curve, 48, 0.028, 6, false),
+      new THREE.MeshBasicMaterial({ color: f.color, transparent: true, opacity: 0.2, depthWrite: false }));
+    scene.add(tube);
+    const amb = makeSpark(f.color, 0.42);
+    f.segs.push({ curve, tube, amb, off: Math.random() });
+  }
+}
+const packet = makeSpark('#ffffff', 1.1);
+const packetCore = new THREE.Mesh(new THREE.SphereGeometry(0.11, 16, 12), new THREE.MeshBasicMaterial({ color: 0xffffff }));
+scene.add(packetCore);
+const trail = Array.from({ length: 6 }, (_, i) => makeSpark('#ffffff', 0.5 - i * 0.06));
+
+// ---------------- UI ----------------
+const flowsEl = document.getElementById('flows');
+const stepsEl = document.getElementById('steps');
+const stepsTitle = document.getElementById('stepsTitle');
+const overviewEl = document.getElementById('overview');
+const controlsEl = document.getElementById('controls');
+const playBtn = document.getElementById('play');
+const detailEl = document.getElementById('detail');
+const cardEl = document.getElementById('card');
+
+const reduced = window.matchMedia('(prefers-reduced-motion: reduce)').matches;
+const state = { flow: null, step: 0, phase: 'hold', t: 0, playing: !reduced, selected: null };
+
+function chip(id, name, color) {
+  const b = document.createElement('button');
+  b.type = 'button'; b.className = 'chip'; b.dataset.id = id;
+  b.style.setProperty('--c', color);
+  b.innerHTML = color ? `<i></i>${name}` : name;
+  b.addEventListener('click', () => setFlow(id === 'all' ? null : id));
+  flowsEl.appendChild(b);
+}
+chip('all', '全体', '');
+FLOWS.forEach(f => chip(f.id, f.name, f.color));
+
+function setFlow(id) {
+  state.flow = id ? FLOWS.find(f => f.id === id) : null;
+  state.step = 0; state.phase = 'hold'; state.t = 0;
+  [...flowsEl.children].forEach(b => b.setAttribute('aria-pressed', String((b.dataset.id === 'all' && !id) || b.dataset.id === id)));
+  stepsEl.innerHTML = '';
+  if (state.flow) {
+    const f = state.flow;
+    stepsTitle.textContent = f.name;
+    stepsEl.style.setProperty('--c', f.color);
+    f.steps.forEach(([nid, title, text], i) => {
+      const li = document.createElement('li');
+      li.tabIndex = 0;
+      li.innerHTML = `<b>${title}</b><span>${NODE[nid].name} — ${text}</span>`;
+      li.addEventListener('click', () => jump(i));
+      li.addEventListener('keydown', e => { if (e.key === 'Enter' || e.key === ' ') { e.preventDefault(); jump(i); } });
+      stepsEl.appendChild(li);
+    });
+  } else {
+    stepsTitle.textContent = '全体';
+  }
+  stepsEl.hidden = !state.flow;
+  overviewEl.hidden = !!state.flow;
+  controlsEl.style.display = state.flow ? '' : 'none';
+  syncPlay();
+  applyHighlight();
+}
+function jump(i) {
+  if (!state.flow) return;
+  state.step = Math.max(0, Math.min(state.flow.steps.length - 1, i));
+  state.phase = 'hold'; state.t = 0;
+  applyHighlight();
+}
+function syncPlay() { playBtn.textContent = state.playing ? '一時停止' : '再生'; }
+playBtn.addEventListener('click', () => { state.playing = !state.playing; syncPlay(); });
+document.getElementById('prev').addEventListener('click', () => jump(state.step - 1));
+document.getElementById('next').addEventListener('click', () => jump(state.step + 1));
+document.getElementById('reset').addEventListener('click', () => {
+  camera.position.copy(HOME.pos); controls.target.copy(HOME.target); fitCamera();
+});
+
+function showDetail(id) {
+  const n = NODE[id];
+  state.selected = id;
+  cardEl.style.setProperty('--c', CAT[n.cat]);
+  cardEl.innerHTML = `<div class="k">${CAT_NAME[n.cat]}</div><h2>${n.name}</h2><p class="sub">${n.sub}</p><ul>${n.desc.map(d => `<li>${d}</li>`).join('')}</ul>`;
+  detailEl.hidden = false;
+  applyHighlight();
+  if (window.matchMedia('(max-width: 720px)').matches) detailEl.scrollIntoView({ block: 'nearest', behavior: reduced ? 'auto' : 'smooth' });
+}
+
+function applyHighlight() {
+  const f = state.flow;
+  const inFlow = f ? new Set(f.steps.map(s => s[0])) : null;
+  const cur = f ? f.steps[state.step][0] : null;
+  for (const n of NODES) {
+    const active = !f || inFlow.has(n.id);
+    n.mesh.material.opacity = active ? 1 : 0.16;
+    n.mesh.material.depthWrite = active;
+    n.el.classList.toggle('dim', !active);
+    n.el.classList.toggle('on', n.id === cur || n.id === state.selected);
+  }
+  for (const fl of FLOWS) {
+    fl.segs.forEach((s, i) => {
+      const visible = !f || fl === f;
+      s.tube.visible = visible;
+      s.amb.visible = !f;
+      if (visible) s.tube.material.opacity = f ? (i < state.step ? 0.75 : 0.28) : 0.2;
+    });
+  }
+  packet.visible = packetCore.visible = !!f;
+  trail.forEach(t => t.visible = !!f);
+  if (f) {
+    packet.material.color.set(f.color);
+    trail.forEach(t => t.material.color.set(f.color));
+    [...stepsEl.children].forEach((li, i) => {
+      li.classList.toggle('cur', i === state.step);
+      li.classList.toggle('done', i < state.step);
+    });
+    const curLi = stepsEl.children[state.step];
+    if (curLi && panel.scrollHeight > panel.clientHeight) {
+      const pr = panel.getBoundingClientRect(), lr = curLi.getBoundingClientRect();
+      if (lr.top < pr.top || lr.bottom > pr.bottom) curLi.scrollIntoView({ block: 'nearest' });
+    }
+  }
+}
+
+// picking
+const ray = new THREE.Raycaster();
+const ndc = new THREE.Vector2();
+let downAt = null;
+renderer.domElement.addEventListener('pointerdown', e => { downAt = [e.clientX, e.clientY]; });
+renderer.domElement.addEventListener('pointerup', e => {
+  if (!downAt || Math.hypot(e.clientX - downAt[0], e.clientY - downAt[1]) > 5) return;
+  const r = renderer.domElement.getBoundingClientRect();
+  ndc.set(((e.clientX - r.left) / r.width) * 2 - 1, -((e.clientY - r.top) / r.height) * 2 + 1);
+  ray.setFromCamera(ndc, camera);
+  const hit = ray.intersectObjects(pickables, false)[0];
+  if (hit) showDetail(hit.object.userData.id);
+});
+
+// ---------------- layout ----------------
+function fitCamera() {
+  const w = stage.clientWidth, h = stage.clientHeight;
+  renderer.setSize(w, h);
+  labelRenderer.setSize(w, h);
+  camera.aspect = w / h;
+  const narrow = w <= 720;
+  // Pull back on tall / narrow screens so the whole stack fits.
+  const dist = HOME.pos.clone().sub(HOME.target).length() * (narrow ? Math.max(1.25, 1.55 / Math.max(camera.aspect, 0.45) * 0.62) : (camera.aspect < 1.3 ? 1.25 : 1));
+  const dirv = camera.position.clone().sub(controls.target).normalize();
+  camera.position.copy(controls.target).add(dirv.multiplyScalar(dist));
+  // Shift the scene away from the panel.
+  if (narrow) camera.setViewOffset(w, h, 0, panel.offsetHeight * 0.5, w, h);
+  else camera.setViewOffset(w, h, -(panel.offsetWidth + 16) * 0.5, 0, w, h);
+  camera.updateProjectionMatrix();
+}
+window.addEventListener('resize', fitCamera);
+
+// ---------------- loop ----------------
+const HOLD = 1.0, MOVE = 1.35, END_HOLD = 2.2;
+const clock = new THREE.Clock();
+let time = 0;
+function tick() {
+  const dt = Math.min(clock.getDelta(), 0.05);
+  time += dt;
+  const f = state.flow;
+
+  if (!f) {
+    for (const fl of FLOWS) fl.segs.forEach(s => {
+      const u = (time * 0.22 + s.off) % 1;
+      s.amb.position.copy(s.curve.getPoint(u));
+      s.amb.material.opacity = Math.sin(u * Math.PI) * 0.9;
+    });
+  } else {
+    if (state.playing) state.t += dt;
+    const last = f.steps.length - 1;
+    if (state.phase === 'hold') {
+      const lim = state.step === last ? END_HOLD : HOLD;
+      if (state.t >= lim) {
+        state.t = 0;
+        if (state.step === last) { state.step = 0; applyHighlight(); }
+        else state.phase = 'move';
+      }
+      const p = NODE[f.steps[state.step][0]].v;
+      packet.position.copy(p); packetCore.position.copy(p);
+      trail.forEach(t => t.position.copy(p));
+    }
+    if (state.phase === 'move') {
+      const seg = f.segs[state.step];
+      const u = Math.min(state.t / MOVE, 1);
+      const e = u < 0.5 ? 2 * u * u : 1 - Math.pow(-2 * u + 2, 2) / 2;
+      packet.position.copy(seg.curve.getPoint(e));
+      packetCore.position.copy(packet.position);
+      trail.forEach((t, i) => t.position.copy(seg.curve.getPoint(Math.max(0, e - (i + 1) * 0.035))));
+      if (u >= 1) { state.phase = 'hold'; state.t = 0; state.step++; applyHighlight(); }
+    }
+    packet.scale.setScalar(1.0 + Math.sin(time * 6) * 0.12);
+  }
+
+  // pulse current / selected node
+  for (const n of NODES) {
+    const cur = f && f.steps[state.step][0] === n.id;
+    const sel = state.selected === n.id;
+    const target = cur ? 0.75 + Math.sin(time * 5) * 0.2 : sel ? 0.55 : 0.18;
+    n.mesh.material.emissiveIntensity += (target - n.mesh.material.emissiveIntensity) * 0.15;
+    if (n.shape === 'orb') n.mesh.rotation.y += dt * 0.4;
+  }
+
+  controls.update();
+  renderer.render(scene, camera);
+  labelRenderer.render(scene, camera);
+  requestAnimationFrame(tick);
+}
+
+setFlow(null);
+fitCamera();
+requestAnimationFrame(fitCamera);
+tick();
+</script>
+
+</body>
+</html>

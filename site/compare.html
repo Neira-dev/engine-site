@@ -1,0 +1,501 @@
+<!doctype html>
+<html lang="ja">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1, viewport-fit=cover">
+<style>body{margin:0}[hidden]{display:none!important}img{max-width:100%}</style>
+<title>Pixeon と Kagura 3D比較</title>
+<link rel="preconnect" href="https://fonts.googleapis.com">
+<link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+<link rel="stylesheet" href="https://fonts.googleapis.com/css2?family=Dela+Gothic+One&family=JetBrains+Mono:wght@500;700&family=Zen+Kaku+Gothic+New:wght@400;500;700&display=swap">
+<style>
+/* Layout: two towers on one 3D stage (old left, new right), linked by arcs; floating panel on the left (bottom sheet on phones). Single dark look, like a GPU debugger. */
+:root {
+  --bg: #080C14;
+  --panel: rgba(13, 19, 31, 0.9);
+  --fg: #E6ECF5;
+  --muted: #8E9BB1;
+  --line: #233049;
+  --accent: #5AA9F0;
+  --c-old: #E8915A;
+  --c-new: #4C9BE8;
+  --c-same: #34C3A0;
+  --c-link: #F2D16B;
+  --c-data: #E3A63E;
+  --f-display: 'Dela Gothic One', 'Zen Kaku Gothic New', 'Noto Sans CJK JP', sans-serif;
+  --f-body: 'Zen Kaku Gothic New', 'Noto Sans CJK JP', 'Hiragino Sans', 'Yu Gothic', sans-serif;
+  --f-mono: 'JetBrains Mono', ui-monospace, 'Cascadia Mono', Consolas, monospace;
+  color-scheme: dark;
+}
+html, body { height: 100%; }
+body { background: var(--bg); color: var(--fg); font-family: var(--f-body); overflow: hidden; }
+#stage { position: fixed; inset: 0; }
+#stage canvas { display: block; }
+#labels { position: absolute; inset: 0; pointer-events: none; }
+
+.lbl {
+  font-family: var(--f-mono); font-size: 12.5px; font-weight: 700; line-height: 1.25;
+  padding: 4px 8px; border-radius: 6px; white-space: nowrap; text-align: center;
+  background: rgba(8, 12, 20, 0.82); border: 1px solid var(--c); color: var(--fg);
+  transition: opacity .3s, box-shadow .3s, border-color .3s;
+}
+.lbl small { display: block; font-family: var(--f-body); font-weight: 500; font-size: 10.5px; color: var(--muted); }
+.lbl.dim { opacity: .2; }
+.lbl.on { box-shadow: 0 0 0 1px var(--c), 0 0 18px var(--c); }
+.zone { font-family: var(--f-body); font-size: 11px; font-weight: 700; letter-spacing: .1em; color: var(--c); white-space: nowrap; text-shadow: 0 0 6px var(--bg), 0 0 2px var(--bg); transition: opacity .3s; }
+.zone.big { font-family: var(--f-mono); font-size: 14px; letter-spacing: .03em; }
+.zone.dim { opacity: .3; }
+.tower {
+  font-family: var(--f-display); font-size: 22px; color: var(--c); white-space: nowrap; text-align: center;
+  text-shadow: 0 0 10px var(--bg), 0 0 3px var(--bg); line-height: 1.2;
+}
+.tower small { display: block; font-family: var(--f-body); font-size: 12px; color: var(--muted); letter-spacing: .06em; }
+
+#panel {
+  position: absolute; left: 16px; top: calc(16px + env(safe-area-inset-top, 0px)); bottom: calc(16px + env(safe-area-inset-bottom, 0px));
+  width: min(370px, calc(100% - 32px)); overflow-y: auto; overscroll-behavior: contain;
+  background: var(--panel); border: 1px solid var(--line); border-radius: 14px;
+  backdrop-filter: blur(10px); -webkit-backdrop-filter: blur(10px);
+  padding: 18px 18px 20px; display: flex; flex-direction: column; gap: 16px;
+}
+.eyebrow { font-family: var(--f-mono); font-size: 11px; letter-spacing: .1em; color: var(--muted); text-transform: uppercase; }
+.home { display: inline-flex; align-items: center; gap: 6px; margin: 0 0 10px; padding: 6px 10px; border: 1px solid var(--line); border-radius: 999px; font: 700 11px/1 var(--f-mono); letter-spacing: .08em; color: var(--muted); text-decoration: none; }
+.home:hover { color: var(--fg); border-color: var(--accent); }
+.home:focus-visible { outline: 2px solid var(--fg); outline-offset: 2px; }
+h1 { font-family: var(--f-display); font-weight: 400; font-size: 23px; line-height: 1.3; margin: 4px 0 0; text-wrap: balance; }
+h1 .o { color: var(--c-old); } h1 .n { color: var(--c-new); }
+.lead { font-size: 13px; line-height: 1.7; color: var(--muted); margin: 6px 0 0; }
+.sec-title { font-size: 11px; font-weight: 700; letter-spacing: .12em; color: var(--muted); margin: 0 0 8px; }
+.chips { display: flex; flex-wrap: wrap; gap: 6px; }
+.chip {
+  font: 500 12.5px/1 var(--f-body); color: var(--fg); background: transparent;
+  border: 1px solid var(--line); border-radius: 999px; padding: 8px 11px; cursor: pointer;
+}
+.chip:hover { border-color: var(--accent); }
+.chip[aria-pressed="true"] { background: color-mix(in srgb, var(--c, var(--c-link)) 20%, transparent); border-color: var(--c, var(--c-link)); }
+.chip.same { --c: var(--c-same); }
+.chip:focus-visible, .ctl:focus-visible { outline: 2px solid var(--fg); outline-offset: 2px; }
+.controls { display: flex; gap: 6px; }
+.ctl { font: 700 12px/1 var(--f-body); color: var(--fg); background: #141D2D; border: 1px solid var(--line); border-radius: 8px; padding: 9px 12px; cursor: pointer; }
+.ctl:hover { border-color: var(--accent); }
+.ctl.grow { flex: 1; }
+.progress { height: 3px; border-radius: 2px; background: var(--line); overflow: hidden; margin-top: 8px; }
+.progress i { display: block; height: 100%; width: 0; background: var(--c-link); }
+
+.cmp { display: flex; flex-direction: column; gap: 8px; }
+.cmp h2 { font-family: var(--f-display); font-weight: 400; font-size: 19px; margin: 0; line-height: 1.3; }
+.row { border-radius: 10px; padding: 10px 12px; border: 1px solid var(--line); background: #0B111C; border-left: 3px solid var(--c); }
+.row .k { font-size: 11px; font-weight: 700; letter-spacing: .08em; color: var(--c); margin-bottom: 3px; }
+.row p { margin: 0; font-size: 13px; line-height: 1.7; }
+.row.o { --c: var(--c-old); } .row.n { --c: var(--c-new); } .row.w { --c: var(--c-link); } .row.s { --c: var(--c-same); }
+.row ul { margin: 2px 0 0; padding-left: 1.1em; font-size: 13px; line-height: 1.7; }
+
+.legend { display: grid; grid-template-columns: repeat(2, minmax(0, 1fr)); gap: 6px 12px; }
+.legend div { font-size: 12px; color: var(--muted); display: flex; align-items: center; gap: 6px; }
+.legend i { width: 10px; height: 10px; border-radius: 3px; background: var(--c); flex: none; }
+.legend i.ln { height: 3px; border-radius: 2px; width: 14px; }
+.note { font-size: 11.5px; line-height: 1.6; color: var(--muted); margin: 0; }
+.note a { color: var(--accent); }
+
+#hint { position: absolute; right: 16px; bottom: calc(16px + env(safe-area-inset-bottom, 0px)); font-size: 12px; color: var(--muted); background: var(--panel); border: 1px solid var(--line); border-radius: 8px; padding: 8px 10px; }
+
+@media (max-width: 720px) {
+  #panel { top: auto; left: 16px; right: 16px; width: auto; height: 50%; padding: 14px 14px 16px; gap: 12px; }
+  h1 { font-size: 18px; }
+  .lead { display: none; }
+  #hint { display: none; }
+  .lbl { font-size: 10px; padding: 3px 5px; }
+  .lbl small { display: none; }
+  .zone { font-size: 9px; }
+  .tower { font-size: 14px; }
+  .tower small { display: none; }
+}
+@media (prefers-reduced-motion: reduce) { .lbl, .zone { transition: none; } }
+</style>
+</head>
+<body>
+
+<div id="stage"><div id="labels"></div></div>
+
+<aside id="panel" aria-label="操作パネル">
+  <header>
+    <a class="home" href="./">← トップ</a>
+    <div class="eyebrow">DX11 → DX12 · 過去作との比較</div>
+    <h1><span class="o">Pixeon</span> と <span class="n">Kagura</span></h1>
+    <p class="lead">左が過去作の Pixeon Engine、右が設計中の新エンジン Kagura です。項目を選ぶと、対応するブロックが光の線で結ばれます。</p>
+  </header>
+
+  <section>
+    <h3 class="sec-title">比べる項目</h3>
+    <div class="chips" id="topics" role="group" aria-label="比べる項目"></div>
+  </section>
+
+  <section>
+    <div class="controls">
+      <button class="ctl" id="prev" type="button">◀ 前</button>
+      <button class="ctl grow" id="play" type="button">自動で切替: ON</button>
+      <button class="ctl" id="next" type="button">次 ▶</button>
+      <button class="ctl" id="reset" type="button">視点</button>
+    </div>
+    <div class="progress" aria-hidden="true"><i id="bar"></i></div>
+  </section>
+
+  <section class="cmp" id="cmp" aria-live="polite"></section>
+
+  <section>
+    <h3 class="sec-title">色の意味</h3>
+    <div class="legend">
+      <div style="--c:var(--c-old)"><i></i>Pixeon(過去作)</div>
+      <div style="--c:var(--c-new)"><i></i>Kagura(新エンジン)</div>
+      <div style="--c:var(--c-link)"><i class="ln"></i>変わるところ</div>
+      <div style="--c:var(--c-same)"><i class="ln"></i>受け継ぐところ</div>
+    </div>
+  </section>
+  <p class="note">個別の図: <a href="pixeon.html">Pixeon Engine 3D構成図</a> / <a href="new-engine.html">Kagura 3D構成図</a></p>
+</aside>
+
+<div id="hint">ドラッグで回転 · 右ドラッグで移動 · ホイールでズーム</div>
+
+<script type="importmap">
+{ "imports": {
+  "three": "https://cdn.jsdelivr.net/npm/three@0.160.0/build/three.module.js",
+  "three/addons/": "https://cdn.jsdelivr.net/npm/three@0.160.0/examples/jsm/"
+} }
+</script>
+<script type="module">
+import * as THREE from 'three';
+import { OrbitControls } from 'three/addons/controls/OrbitControls.js';
+import { CSS2DRenderer, CSS2DObject } from 'three/addons/renderers/CSS2DRenderer.js';
+import { RoundedBoxGeometry } from 'three/addons/geometries/RoundedBoxGeometry.js';
+
+const cs = getComputedStyle(document.documentElement);
+const cv = n => cs.getPropertyValue(n).trim();
+const COL = { old: cv('--c-old'), new: cv('--c-new'), same: cv('--c-same'), link: cv('--c-link'), data: cv('--c-data') };
+
+// ---------------- data ----------------
+// Old tower (x ≈ -7.5) and new tower (x ≈ +7.5)
+const NODES = [
+  // Pixeon — everything in one DLL
+  { id: 'o_system', side: 'old', name: 'System', sub: 'DirectX 11', pos: [-7.5, 0, 0] },
+  { id: 'o_asset', side: 'old', name: 'AssetManager', sub: '実行時に Assimp で読む', pos: [-9.7, 1.9, 0] },
+  { id: 'o_shader', side: 'old', name: 'ShaderManager', sub: 'D3DCompile → .cso', pos: [-7.5, 1.9, 0] },
+  { id: 'o_script', side: 'old', name: 'ScriptManager', sub: 'cl.exe を直接実行', pos: [-5.3, 1.9, 0] },
+  { id: 'o_scene', side: 'old', name: 'Scene + Component', sub: '11 種類', pos: [-9.7, 3.8, 0] },
+  { id: 'o_bullet', side: 'old', name: 'Bullet', sub: '物理', pos: [-7.5, 3.8, 0] },
+  { id: 'o_render', side: 'old', name: 'Renderer', sub: 'Layer RT ×10 / Deferred', pos: [-5.3, 3.8, 0] },
+  { id: 'o_editor', side: 'old', name: 'Editor', sub: 'ImGui(DLL の中)', pos: [-9.7, 5.7, 0] },
+  { id: 'o_ai', side: 'old', name: 'IZANAGI', sub: 'llama.cpp を内蔵', pos: [-7.5, 5.7, 0], shape: 'orb' },
+  { id: 'o_api', side: 'old', name: 'C API', sub: 'void* ハンドル', pos: [-5.3, 5.7, 0] },
+  { id: 'o_exe', side: 'old', name: 'Exe.exe', sub: 'ウィンドウ作成のみ', pos: [-8.8, 8.3, 0] },
+  { id: 'o_sdll', side: 'old', name: 'Script DLL ×N', sub: '1 本ごとに DLL', pos: [-6.2, 8.3, 0] },
+
+  // New engine — split binaries
+  { id: 'n_host', side: 'new', name: 'Script Host', sub: 'DLL ロード / 再生成', pos: [5.3, 0, 0] },
+  { id: 'n_rhi', side: 'new', name: 'RHI', sub: 'DirectX 12', pos: [7.5, 0, 0] },
+  { id: 'n_intro', side: 'new', name: 'Introspection API', sub: 'AI 用の入口', pos: [9.7, 0, 0] },
+  { id: 'n_core', side: 'new', name: 'Reflection', sub: '型情報 / 直列化', pos: [5.3, 1.9, 0] },
+  { id: 'n_dxc', side: 'new', name: 'Shader Compiler', sub: 'DXC + キャッシュ', pos: [7.5, 1.9, 0] },
+  { id: 'n_asset', side: 'new', name: 'Asset', sub: '独自形式だけ読む', pos: [9.7, 1.9, 0] },
+  { id: 'n_scene', side: 'new', name: 'Scene + Component', sub: 'GameObject 方式', pos: [5.3, 3.8, 0] },
+  { id: 'n_bullet', side: 'new', name: 'Bullet', sub: '物理', pos: [7.5, 3.8, 0] },
+  { id: 'n_render', side: 'new', name: 'Renderer', sub: 'Render Graph', pos: [9.7, 3.8, 0] },
+  { id: 'n_editor', side: 'new', name: 'Editor UI', sub: 'ImGui + Undo/Redo', pos: [5.3, 6.1, 0] },
+  { id: 'n_importer', side: 'new', name: 'Importer', sub: 'Assimp / DirectXTex', pos: [7.5, 6.1, 0] },
+  { id: 'n_bridge', side: 'new', name: 'AI Bridge', sub: 'MCP Server', pos: [9.7, 6.1, 0] },
+  { id: 'n_player', side: 'new', name: 'Player.exe', sub: '配布用(Editor なし)', pos: [6.2, 8.3, 0] },
+  { id: 'n_scripts', side: 'new', name: 'GameScripts.dll', sub: 'ユーザーの C++', pos: [8.8, 8.3, 0] },
+  { id: 'n_llama', side: 'new', name: 'llama-server', sub: '別プロセス', pos: [12.6, 6.1, 0], shape: 'orb' },
+  { id: 'n_library', side: 'new', name: 'Library/', sub: '変換済みキャッシュ', pos: [12.6, 1.9, 0], shape: 'disk' },
+];
+const NODE = Object.fromEntries(NODES.map(n => [n.id, n]));
+
+const CAGES = [
+  { id: 'c_old', label: 'Pixeon_Engine.dll(全部入り) /MT', color: COL.old, box: [-11.2, -3.8, -0.6, 6.5, -1.3, 1.3], lpos: [-7.5, -0.6, 1.3] },
+  { id: 'c_engine', label: 'Engine.dll /MD', color: COL.new, box: [3.8, 11.2, -0.6, 4.6, -1.3, 1.3], lpos: [7.5, -0.6, 1.3] },
+  { id: 'c_editor', label: 'Editor.exe', color: COL.new, box: [3.8, 11.2, 5.4, 6.85, -1.3, 1.3], lpos: [7.5, 5.4, 1.3] },
+];
+const CAGE = Object.fromEntries(CAGES.map(c => [c.id, c]));
+
+const TOPICS = [
+  { id: 'split', name: '構成(DLL の分け方)', pairs: [['c_old', 'c_engine'], ['c_old', 'c_editor'], ['o_exe', 'n_player']],
+    old: 'Editor・描画・AI まで、すべてが 1 つの Pixeon_Engine.dll に入っている。Exe.exe はウィンドウを作って DLL を呼ぶだけ。',
+    new: 'Engine.dll はランタイムだけ。Editor.exe と Player.exe を分け、配布する Player に Editor のコードが入らない。',
+    why: '機能を足しても全体が膨らまず、配布ビルドを軽く保てる。' },
+  { id: 'api', name: 'DX11 → DX12', pairs: [['o_system', 'n_rhi']],
+    old: 'System クラスが D3D11 のデバイス・ステート・HDR パイプラインを直接持つ。',
+    new: 'RHI が D3D12 のコマンドリスト・PSO・ディスクリプタ・フェンスを薄く包む。GPU が使い終わるまで解放しない遅延削除キューを持つ。',
+    why: 'Bindless・Mesh Shader・DXR など DX12 の機能を使えるようにする。' },
+  { id: 'render', name: '描画の仕組み', pairs: [['o_render', 'n_render']],
+    old: 'レイヤーごとに RT を用意(最大 10 枚)。GBuffer → Lighting → Forward → ポストエフェクト → 合成。',
+    new: 'Render Graph がパスとリソースバリアを管理。R1 PBR → R2 Render Graph → R3 Bindless → R4 GPU 駆動 → R5 DXR と段階的に進める。',
+    why: '手作業の状態管理を減らし、高度な描画を後から足しやすくする。' },
+  { id: 'shader', name: 'シェーダ', pairs: [['o_shader', 'n_dxc']],
+    old: 'D3DCompileFromFile でコンパイル。VS_ / PS_ の接頭辞で種類を判別し、エラーはメッセージボックス。',
+    new: 'DXC(SM 6.6 以上)。ソース・include・defines・DXC 版のハッシュでキャッシュし、失敗時はピンクのシェーダで描画を続ける。',
+    why: '新しいシェーダ機能を使い、編集中に止まらない体験にする。' },
+  { id: 'hot', name: 'ホットリロード', pairs: [['o_script', 'n_host'], ['o_sdll', 'n_scripts']],
+    old: 'スクリプト 1 本ごとに DLL。旧 DLL を解放してから cl.exe でビルド。自動リロードの経路では値の退避がなく、初期値に戻る可能性がある。',
+    new: 'CMake + Ninja でビルドし、一意名でコピーしてロックを回避。リフレクションで全フィールドを必ず退避・復元する。',
+    why: '保存するだけで、再生中の状態を保ったまま変更を反映する。' },
+  { id: 'asset', name: 'アセット', pairs: [['o_asset', 'n_importer'], ['o_asset', 'n_asset'], ['o_asset', 'n_library']],
+    old: '実行時に Assimp / DirectXTex で元ファイルを読む。配布用には .PixAssets にまとめる。',
+    new: 'Editor の Importer が独自形式に変換して Library/ に保存。実行時は独自形式だけを読み、GUID で参照する。',
+    why: '起動とロードを速くし、Player から変換ライブラリを外す。' },
+  { id: 'ai', name: 'AI 連携', pairs: [['o_ai', 'n_llama'], ['o_ai', 'n_bridge'], ['o_api', 'n_intro']],
+    old: 'IZANAGI が DLL の中で qwen2.5-7b を推論。チャット専用で、エンジンの状態は読めない。',
+    new: 'llama-server を別プロセスで起動。MCP サーバーで外部 AI もつながり、Introspection API でシーンを読み、Undo できる Command で変更する。',
+    why: 'AI が実際にエンジンを操作でき、推論が落ちてもエンジンは巻き込まれない。' },
+  { id: 'crt', name: 'CRT 設定', pairs: [['c_old', 'c_engine'], ['o_sdll', 'n_scripts']],
+    old: 'エンジンは /MT(静的 CRT)、スクリプトは /MD。生成と破棄を DLL 側の関数に任せて回避している。',
+    new: '全ターゲットを /MD に統一。DLL 境界のメモリ確保はエンジンのアロケータ経由。',
+    why: 'DLL の境界で文字列やコンテナを安全に受け渡す。' },
+  { id: 'same', name: '受け継ぐもの', same: true,
+    pairs: [['o_scene', 'n_scene'], ['o_bullet', 'n_bullet'], ['o_editor', 'n_editor'], ['o_shader', 'n_core'], ['o_ai', 'n_llama']],
+    keep: ['GameObject + Component の作り方', 'Bullet による物理', 'ImGui の Editor', 'Assimp / DirectXTex', 'シェーダのリフレクションで値を名前で設定する仕組み', 'ファイル監視によるホットリロード', 'オフラインで動く LLM'],
+    why: 'Pixeon で作った考え方の多くは、そのまま Kagura の土台になる。' },
+];
+
+// ---------------- three setup ----------------
+const stage = document.getElementById('stage');
+const panel = document.getElementById('panel');
+const renderer = new THREE.WebGLRenderer({ antialias: true });
+renderer.setPixelRatio(Math.min(window.devicePixelRatio, 2));
+renderer.setClearColor(cv('--bg'));
+stage.prepend(renderer.domElement);
+const labelRenderer = new CSS2DRenderer({ element: document.getElementById('labels') });
+
+const scene = new THREE.Scene();
+scene.fog = new THREE.Fog(cv('--bg'), 34, 70);
+const camera = new THREE.PerspectiveCamera(36, 1, 0.1, 200);
+const HOME = { pos: new THREE.Vector3(3, 13, 36), target: new THREE.Vector3(0.8, 4.2, 0) };
+camera.position.copy(HOME.pos);
+const controls = new OrbitControls(camera, renderer.domElement);
+controls.target.copy(HOME.target);
+controls.enableDamping = true;
+controls.dampingFactor = 0.08;
+controls.minDistance = 8;
+controls.maxDistance = 140;
+controls.maxPolarAngle = Math.PI * 0.49;
+
+scene.add(new THREE.HemisphereLight(0xbcd4ff, 0x0b0f17, 1.0));
+const sun = new THREE.DirectionalLight(0xffffff, 1.4);
+sun.position.set(4, 14, 12);
+scene.add(sun);
+const grid = new THREE.GridHelper(60, 60, 0x1a2539, 0x111a2a);
+grid.position.y = -1.4;
+scene.add(grid);
+
+function addLabel(html, pos, cls, color) {
+  const el = document.createElement('div');
+  el.className = cls;
+  el.innerHTML = html;
+  el.style.setProperty('--c', color);
+  const o = new CSS2DObject(el);
+  o.position.copy(pos);
+  scene.add(o);
+  return el;
+}
+
+// tower titles
+addLabel('Pixeon Engine<small>過去作 · DirectX 11</small>', new THREE.Vector3(-7.5, 10.1, 0), 'tower', COL.old);
+addLabel('Kagura<small>設計中 · DirectX 12</small>', new THREE.Vector3(7.5, 10.1, 0), 'tower', COL.new);
+
+// cages
+for (const c of CAGES) {
+  const [x0, x1, y0, y1, z0, z1] = c.box;
+  const g = new THREE.BoxGeometry(x1 - x0, y1 - y0, z1 - z0);
+  const center = new THREE.Vector3((x0 + x1) / 2, (y0 + y1) / 2, (z0 + z1) / 2);
+  const faces = new THREE.Mesh(g, new THREE.MeshBasicMaterial({ color: c.color, transparent: true, opacity: 0.04, depthWrite: false }));
+  faces.position.copy(center);
+  scene.add(faces);
+  const edges = new THREE.LineSegments(new THREE.EdgesGeometry(g), new THREE.LineBasicMaterial({ color: c.color, transparent: true, opacity: 0.8 }));
+  edges.position.copy(center);
+  scene.add(edges);
+  c.v = new THREE.Vector3(center.x, y1, center.z);
+  c.faces = faces; c.edges = edges;
+  c.el = addLabel(c.label, new THREE.Vector3(...c.lpos), 'zone big', c.color);
+}
+// thin shelf under data / separate process
+function pad(x, y, color) {
+  const m = new THREE.Mesh(new THREE.CylinderGeometry(1.2, 1.2, 0.05, 40), new THREE.MeshBasicMaterial({ color, transparent: true, opacity: 0.18 }));
+  m.position.set(x, y, 0);
+  scene.add(m);
+}
+pad(12.6, 5.55, COL.new);
+pad(12.6, 1.55, COL.data);
+addLabel('別プロセス', new THREE.Vector3(12.6, 5.35, 1.2), 'zone', COL.new);
+addLabel('データ', new THREE.Vector3(12.6, 1.35, 1.2), 'zone', COL.data);
+
+// ---------------- nodes ----------------
+const roundGeo = new RoundedBoxGeometry(1.95, 0.48, 1.1, 3, 0.09);
+const orbGeo = new THREE.IcosahedronGeometry(0.55, 1);
+const diskGeo = new THREE.CylinderGeometry(0.72, 0.72, 0.32, 40);
+for (const n of NODES) {
+  n.base = new THREE.Color(n.id === 'n_library' ? COL.data : COL[n.side]);
+  const mat = new THREE.MeshStandardMaterial({ color: n.base.clone(), roughness: 0.45, metalness: 0.15, emissive: n.base.clone(), emissiveIntensity: 0.15, transparent: true, flatShading: n.shape === 'orb' });
+  const geo = n.shape === 'orb' ? orbGeo : n.shape === 'disk' ? diskGeo : roundGeo;
+  n.mesh = new THREE.Mesh(geo, mat);
+  n.mesh.position.set(...n.pos);
+  scene.add(n.mesh);
+  n.v = n.mesh.position.clone();
+  const lift = n.shape === 'orb' ? 0.8 : 0.58;
+  n.el = addLabel(`${n.name}<small>${n.sub}</small>`, n.v.clone().add(new THREE.Vector3(0, lift, 0)), 'lbl', n.id === 'n_library' ? COL.data : COL[n.side]);
+}
+const pointOf = id => (NODE[id] ? NODE[id].v : CAGE[id].v);
+
+// ---------------- arcs ----------------
+const glowTex = (() => {
+  const c = document.createElement('canvas'); c.width = c.height = 64;
+  const g = c.getContext('2d');
+  const grd = g.createRadialGradient(32, 32, 0, 32, 32, 32);
+  grd.addColorStop(0, 'rgba(255,255,255,1)');
+  grd.addColorStop(0.25, 'rgba(255,255,255,0.55)');
+  grd.addColorStop(1, 'rgba(255,255,255,0)');
+  g.fillStyle = grd; g.fillRect(0, 0, 64, 64);
+  return new THREE.CanvasTexture(c);
+})();
+const arcGroup = new THREE.Group();
+scene.add(arcGroup);
+let arcs = [];
+function clearArcs() {
+  for (const a of arcs) { a.tube.geometry.dispose(); a.tube.material.dispose(); a.sparks.forEach(s => s.material.dispose()); }
+  arcGroup.clear();
+  arcs = [];
+}
+function buildArcs(topic) {
+  clearArcs();
+  const color = topic.same ? COL.same : COL.link;
+  topic.pairs.forEach(([a, b], k) => {
+    const p0 = pointOf(a).clone(), p2 = pointOf(b).clone();
+    const mid = p0.clone().add(p2).multiplyScalar(0.5);
+    mid.y = Math.max(p0.y, p2.y) + 2.2 + k * 0.5;
+    mid.z += 1.2 + k * 0.6;
+    const curve = new THREE.QuadraticBezierCurve3(p0, mid, p2);
+    const tube = new THREE.Mesh(new THREE.TubeGeometry(curve, 64, 0.035, 6, false), new THREE.MeshBasicMaterial({ color, transparent: true, opacity: 0.55, depthWrite: false }));
+    arcGroup.add(tube);
+    const sparks = [0, 1, 2].map(() => {
+      const s = new THREE.Sprite(new THREE.SpriteMaterial({ map: glowTex, color, transparent: true, blending: THREE.AdditiveBlending, depthWrite: false }));
+      s.scale.setScalar(0.7);
+      arcGroup.add(s);
+      return s;
+    });
+    arcs.push({ curve, tube, sparks, off: k * 0.17 });
+  });
+}
+
+// ---------------- UI ----------------
+const topicsEl = document.getElementById('topics');
+const cmpEl = document.getElementById('cmp');
+const playBtn = document.getElementById('play');
+const bar = document.getElementById('bar');
+const reduced = window.matchMedia('(prefers-reduced-motion: reduce)').matches;
+const DWELL = 8;
+const state = { idx: 0, auto: !reduced, t: 0 };
+
+TOPICS.forEach((tp, i) => {
+  const b = document.createElement('button');
+  b.type = 'button'; b.className = 'chip' + (tp.same ? ' same' : '');
+  b.textContent = tp.name;
+  b.addEventListener('click', () => { setTopic(i); });
+  topicsEl.appendChild(b);
+});
+
+function setTopic(i) {
+  state.idx = (i + TOPICS.length) % TOPICS.length;
+  state.t = 0;
+  const tp = TOPICS[state.idx];
+  [...topicsEl.children].forEach((b, k) => b.setAttribute('aria-pressed', String(k === state.idx)));
+  if (tp.same) {
+    cmpEl.innerHTML = `<h2>${tp.name}</h2>
+      <div class="row s"><div class="k">両方に共通</div><ul>${tp.keep.map(k => `<li>${k}</li>`).join('')}</ul></div>
+      <div class="row w" style="--c:var(--c-same)"><div class="k">ポイント</div><p>${tp.why}</p></div>`;
+  } else {
+    cmpEl.innerHTML = `<h2>${tp.name}</h2>
+      <div class="row o"><div class="k">Pixeon(過去作)</div><p>${tp.old}</p></div>
+      <div class="row n"><div class="k">Kagura</div><p>${tp.new}</p></div>
+      <div class="row w"><div class="k">ねらい</div><p>${tp.why}</p></div>`;
+  }
+  const active = new Set(tp.pairs.flat());
+  const hl = new THREE.Color(tp.same ? COL.same : COL.link);
+  for (const n of NODES) {
+    const on = active.has(n.id);
+    n.on = on;
+    n.mesh.material.opacity = on ? 1 : 0.22;
+    n.mesh.material.depthWrite = on;
+    n.mesh.material.emissive.copy(on && tp.same ? hl : n.base);
+    n.el.classList.toggle('dim', !on);
+    n.el.classList.toggle('on', on);
+    n.el.style.setProperty('--c', on && tp.same ? COL.same : (n.id === 'n_library' ? COL.data : COL[n.side]));
+  }
+  for (const c of CAGES) {
+    const on = active.has(c.id);
+    c.on = on;
+    c.edges.material.opacity = on ? 1 : 0.35;
+    c.faces.material.opacity = on ? 0.1 : 0.03;
+    c.el.classList.toggle('dim', !on && !tp.pairs.some(p => p.some(id => NODE[id] && NODE[id].side === (c.id === 'c_old' ? 'old' : 'new'))));
+  }
+  buildArcs(tp);
+}
+function syncPlay() { playBtn.textContent = `自動で切替: ${state.auto ? 'ON' : 'OFF'}`; }
+playBtn.addEventListener('click', () => { state.auto = !state.auto; state.t = 0; syncPlay(); });
+document.getElementById('prev').addEventListener('click', () => setTopic(state.idx - 1));
+document.getElementById('next').addEventListener('click', () => setTopic(state.idx + 1));
+document.getElementById('reset').addEventListener('click', () => { camera.position.copy(HOME.pos); controls.target.copy(HOME.target); fitCamera(); });
+
+// ---------------- layout ----------------
+function fitCamera() {
+  const w = stage.clientWidth, h = stage.clientHeight;
+  renderer.setSize(w, h);
+  labelRenderer.setSize(w, h);
+  camera.aspect = w / h;
+  const narrow = w <= 720;
+  const base = HOME.pos.clone().sub(HOME.target).length();
+  const dist = narrow ? base * Math.min(3.2, Math.max(1.5, 1.4 / camera.aspect)) : base * (camera.aspect < 1.5 ? 1.25 : 1);
+  scene.fog.near = dist * 0.95; scene.fog.far = dist * 2.2;
+  const dir = camera.position.clone().sub(controls.target).normalize();
+  camera.position.copy(controls.target).add(dir.multiplyScalar(dist));
+  if (narrow) camera.setViewOffset(w, h, 0, panel.offsetHeight * 0.5, w, h);
+  else camera.setViewOffset(w, h, -(panel.offsetWidth + 16) * 0.5, 0, w, h);
+  camera.updateProjectionMatrix();
+}
+window.addEventListener('resize', fitCamera);
+
+// ---------------- loop ----------------
+const clock = new THREE.Clock();
+let time = 0;
+function tick() {
+  const dt = Math.min(clock.getDelta(), 0.05);
+  time += dt;
+  if (state.auto) {
+    state.t += dt;
+    if (state.t >= DWELL) setTopic(state.idx + 1);
+  }
+  bar.style.width = state.auto ? `${Math.min(100, (state.t / DWELL) * 100)}%` : '0%';
+
+  for (const a of arcs) a.sparks.forEach((s, k) => {
+    const u = ((time * 0.35) + a.off + k / 3) % 1;
+    s.position.copy(a.curve.getPoint(u));
+    s.material.opacity = Math.sin(u * Math.PI);
+  });
+  for (const n of NODES) {
+    const target = n.on ? 0.55 + Math.sin(time * 4) * 0.2 : 0.12;
+    n.mesh.material.emissiveIntensity += (target - n.mesh.material.emissiveIntensity) * 0.12;
+    if (n.shape === 'orb') n.mesh.rotation.y += dt * 0.4;
+  }
+  for (const c of CAGES) if (c.on) c.edges.material.opacity = 0.7 + Math.sin(time * 4) * 0.3;
+
+  controls.update();
+  renderer.render(scene, camera);
+  labelRenderer.render(scene, camera);
+  requestAnimationFrame(tick);
+}
+
+syncPlay();
+setTopic(0);
+fitCamera();
+requestAnimationFrame(fitCamera);
+tick();
+</script>
+
+</body>
+</html>

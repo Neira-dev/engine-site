@@ -1,0 +1,782 @@
+<!doctype html>
+<html lang="ja">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1, viewport-fit=cover">
+<style>body{margin:0}[hidden]{display:none!important}img{max-width:100%}</style>
+<title>Pixeon Engine 3D構成図</title>
+<link rel="preconnect" href="https://fonts.googleapis.com">
+<link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+<link rel="stylesheet" href="https://fonts.googleapis.com/css2?family=Dela+Gothic+One&family=JetBrains+Mono:wght@500;700&family=Zen+Kaku+Gothic+New:wght@400;500;700&display=swap">
+<style>
+/* Layout: full-bleed 3D stage; a floating instrument panel on the left (bottom sheet on phones). Deliberately single dark look, like a GPU debugger. */
+:root {
+  --bg: #080C14;
+  --panel: rgba(13, 19, 31, 0.88);
+  --panel-solid: #0E1521;
+  --fg: #E6ECF5;
+  --muted: #8E9BB1;
+  --line: #233049;
+  --accent: #5AA9F0;
+  --c-engine: #4C9BE8;
+  --c-editor: #9A8CF0;
+  --c-runtime: #34C3A0;
+  --c-data: #E3A63E;
+  --c-ai: #EE7D5E;
+  --c-hw: #9AA3B2;
+  --f-display: 'Dela Gothic One', 'Zen Kaku Gothic New', 'Noto Sans CJK JP', sans-serif;
+  --f-body: 'Zen Kaku Gothic New', 'Noto Sans CJK JP', 'Hiragino Sans', 'Yu Gothic', sans-serif;
+  --f-mono: 'JetBrains Mono', ui-monospace, 'Cascadia Mono', Consolas, monospace;
+  color-scheme: dark;
+}
+html, body { height: 100%; }
+body { background: var(--bg); color: var(--fg); font-family: var(--f-body); overflow: hidden; }
+#stage { position: fixed; inset: 0; }
+#stage canvas { display: block; }
+#labels { position: absolute; inset: 0; pointer-events: none; }
+
+.lbl {
+  font-family: var(--f-mono); font-size: 12px; font-weight: 700; line-height: 1.25;
+  padding: 4px 8px; border-radius: 6px; white-space: nowrap; text-align: center;
+  background: rgba(8, 12, 20, 0.8); border: 1px solid var(--c); color: var(--fg);
+  pointer-events: auto; cursor: pointer; transition: opacity .25s, box-shadow .25s;
+}
+.lbl small { display: block; font-family: var(--f-body); font-weight: 500; font-size: 10.5px; color: var(--muted); }
+.lbl.dim { opacity: .22; }
+.lbl.on { box-shadow: 0 0 0 1px var(--c), 0 0 18px var(--c); }
+.lbl:focus-visible { outline: 2px solid var(--fg); outline-offset: 2px; }
+.zone {
+  font-family: var(--f-body); font-size: 11px; font-weight: 700; letter-spacing: .12em;
+  color: var(--c); white-space: nowrap; pointer-events: none; opacity: .9;
+  text-shadow: 0 0 6px var(--bg), 0 0 2px var(--bg);
+}
+.zone.big { font-family: var(--f-mono); font-size: 15px; letter-spacing: .04em; }
+
+#panel {
+  position: absolute; left: 16px; top: calc(16px + env(safe-area-inset-top, 0px)); bottom: calc(16px + env(safe-area-inset-bottom, 0px));
+  width: min(360px, calc(100% - 32px)); overflow-y: auto; overscroll-behavior: contain;
+  background: var(--panel); border: 1px solid var(--line); border-radius: 14px;
+  backdrop-filter: blur(10px); -webkit-backdrop-filter: blur(10px);
+  padding: 18px 18px 20px; display: flex; flex-direction: column; gap: 16px;
+}
+.eyebrow { font-family: var(--f-mono); font-size: 11px; letter-spacing: .1em; color: var(--muted); text-transform: uppercase; }
+.home { display: inline-flex; align-items: center; gap: 6px; margin: 0 0 10px; padding: 6px 10px; border: 1px solid var(--line); border-radius: 999px; font: 700 11px/1 var(--f-mono); letter-spacing: .08em; color: var(--muted); text-decoration: none; }
+.home:hover { color: var(--fg); border-color: var(--accent); }
+.home:focus-visible { outline: 2px solid var(--fg); outline-offset: 2px; }
+h1 { font-family: var(--f-display); font-weight: 400; font-size: 24px; line-height: 1.25; margin: 4px 0 0; text-wrap: balance; }
+.lead { font-size: 13px; line-height: 1.7; color: var(--muted); margin: 6px 0 0; }
+
+.sec-title { font-size: 11px; font-weight: 700; letter-spacing: .12em; color: var(--muted); margin: 0 0 8px; }
+.chips { display: flex; flex-wrap: wrap; gap: 6px; }
+.chip {
+  font: 500 12.5px/1 var(--f-body); color: var(--fg); background: transparent;
+  border: 1px solid var(--line); border-radius: 999px; padding: 8px 11px; cursor: pointer;
+  display: inline-flex; align-items: center; gap: 6px;
+}
+.chip i { width: 8px; height: 8px; border-radius: 50%; background: var(--c); display: inline-block; }
+.chip:hover { border-color: var(--c, var(--accent)); }
+.chip[aria-pressed="true"] { background: color-mix(in srgb, var(--c, var(--accent)) 22%, transparent); border-color: var(--c, var(--accent)); }
+.chip:focus-visible, .ctl:focus-visible, .steps li:focus-visible { outline: 2px solid var(--fg); outline-offset: 2px; }
+
+.controls { display: flex; gap: 6px; }
+.ctl {
+  font: 700 12px/1 var(--f-body); color: var(--fg); background: #141D2D; border: 1px solid var(--line);
+  border-radius: 8px; padding: 9px 12px; cursor: pointer;
+}
+.ctl:hover { border-color: var(--accent); }
+.ctl.grow { flex: 1; }
+.ctl[disabled] { opacity: .4; cursor: default; }
+
+.steps { list-style: none; margin: 0; padding: 0; display: flex; flex-direction: column; gap: 4px; counter-reset: s; }
+.steps li {
+  counter-increment: s; display: grid; grid-template-columns: 26px 1fr; gap: 2px 8px; align-items: start;
+  padding: 8px 10px; border-radius: 8px; border: 1px solid transparent; cursor: pointer; transition: background .2s, border-color .2s;
+}
+.steps li::before {
+  content: counter(s); grid-row: span 2; font: 700 11px/22px var(--f-mono); text-align: center;
+  width: 22px; height: 22px; border-radius: 50%; border: 1px solid var(--line); color: var(--muted);
+}
+.steps li b { font-size: 13px; font-weight: 700; }
+.steps li span { font-size: 12px; line-height: 1.6; color: var(--muted); min-width: 0; }
+.steps li.done::before { border-color: var(--c); color: var(--c); }
+.steps li.cur { background: color-mix(in srgb, var(--c) 14%, transparent); border-color: color-mix(in srgb, var(--c) 55%, transparent); }
+.steps li.cur::before { background: var(--c); color: var(--bg); border-color: var(--c); }
+.steps li.cur span { color: var(--fg); }
+
+.overview p { font-size: 12.5px; line-height: 1.75; color: var(--muted); margin: 0 0 8px; }
+.overview p b { color: var(--fg); font-weight: 700; }
+
+.card { border: 1px solid var(--line); border-radius: 10px; padding: 12px 14px; background: #0B111C; }
+.card .k { font-size: 11px; color: var(--c); letter-spacing: .08em; font-weight: 700; }
+.card h2 { font-family: var(--f-mono); font-size: 16px; margin: 4px 0 2px; }
+.card .sub { font-size: 12px; color: var(--muted); margin: 0 0 6px; }
+.card ul { margin: 0; padding-left: 1.1em; display: flex; flex-direction: column; gap: 4px; }
+.card li { font-size: 12.5px; line-height: 1.6; }
+
+.legend { display: grid; grid-template-columns: repeat(2, minmax(0, 1fr)); gap: 6px 12px; }
+.legend div { font-size: 12px; color: var(--muted); display: flex; align-items: center; gap: 6px; }
+.legend i { width: 10px; height: 10px; border-radius: 3px; background: var(--c); display: inline-block; flex: none; }
+
+#hint {
+  position: absolute; right: 16px; bottom: calc(16px + env(safe-area-inset-bottom, 0px));
+  font-size: 12px; color: var(--muted); background: var(--panel); border: 1px solid var(--line);
+  border-radius: 8px; padding: 8px 10px; display: flex; gap: 10px; align-items: center;
+}
+
+.diff { margin: 0; padding: 0; list-style: none; display: flex; flex-direction: column; gap: 6px; }
+.diff li { font-size: 12px; line-height: 1.6; display: grid; grid-template-columns: minmax(0, 1fr) 14px minmax(0, 1fr); gap: 6px; align-items: start; }
+.diff .old { color: var(--muted); }
+.diff .arw { color: var(--accent); text-align: center; }
+.diff .new { color: var(--fg); }
+.note { font-size: 11.5px; line-height: 1.6; color: var(--muted); margin: 6px 0 0; }
+.note a, .lead a { color: var(--accent); }
+@media (max-width: 720px) {
+  #panel { top: auto; left: 16px; right: 16px; width: auto; height: 46%; padding: 14px 14px 16px; gap: 12px; }
+  h1 { font-size: 19px; }
+  .lead { display: none; }
+  #hint { display: none; }
+  .lbl { font-size: 10.5px; padding: 3px 6px; }
+  .lbl small { display: none; }
+  .zone { font-size: 9.5px; }
+}
+@media (prefers-reduced-motion: reduce) { .lbl, .steps li { transition: none; } }
+</style>
+</head>
+<body>
+
+<div id="stage"><div id="labels"></div></div>
+
+<aside id="panel" aria-label="操作パネル">
+  <header>
+    <a class="home" href="./">← トップ</a>
+    <div class="eyebrow">PIGUMI/Pixeon_Engine · DX11 · v500</div>
+    <h1>Pixeon Engine 3D構成図</h1>
+    <p class="lead">過去に作った Pixeon2 エンジンを、リポジトリのコードから読み取って立体にしました。青い枠の <b>Pixeon_Engine.dll</b> に、描画・マネージャー・Editor・AI まですべて入っています。</p>
+  </header>
+
+  <section>
+    <h3 class="sec-title">処理の流れ</h3>
+    <div class="chips" id="flows" role="group" aria-label="表示する流れ"></div>
+  </section>
+
+  <section class="controls" id="controls">
+    <button class="ctl" id="prev" type="button">◀ 前</button>
+    <button class="ctl grow" id="play" type="button">一時停止</button>
+    <button class="ctl" id="next" type="button">次 ▶</button>
+    <button class="ctl" id="reset" type="button">視点</button>
+  </section>
+
+  <section id="stepsWrap">
+    <h3 class="sec-title" id="stepsTitle">全体</h3>
+    <ol class="steps" id="steps"></ol>
+    <div class="overview" id="overview">
+      <p><b>Exe.exe はウィンドウを作るだけ</b>で、Pixeon_Engine.dll を LoadLibrary し、SoftInit / SoftUpdate / SoftDraw を呼び出します。</p>
+      <p>DLL の中は下から <b>基盤 → マネージャー群 → シーン / 描画 → Editor・API・AI</b> の 4 層です。Editor の GUI とローカル LLM(IZANAGI)も同じ DLL に入っています。</p>
+      <p><b>右の棚</b>は SceneRoot/ フォルダ、<b>上段</b>は DLL の外で動く実行ファイルとツールです。ブロックをクリックすると、コードから読み取った役割が出ます。</p>
+    </div>
+  </section>
+
+  <section id="detail" hidden>
+    <div class="card" id="card"></div>
+  </section>
+
+  <section>
+    <h3 class="sec-title">新しいエンジン設計との違い</h3>
+    <ul class="diff">
+      <li><span class="old">DirectX 11</span><span class="arw">→</span><span class="new">DirectX 12</span></li>
+      <li><span class="old">Editor・AI も 1 つの DLL</span><span class="arw">→</span><span class="new">Engine.dll / Editor.exe / Player.exe に分割</span></li>
+      <li><span class="old">IZANAGI を同じプロセスで推論</span><span class="arw">→</span><span class="new">llama-server を別プロセスで起動</span></li>
+      <li><span class="old">D3DCompile(FXC 系)</span><span class="arw">→</span><span class="new">DXC + キャッシュキー</span></li>
+      <li><span class="old">スクリプトごとに cl.exe を直接実行</span><span class="arw">→</span><span class="new">CMake + Ninja、一意名コピーでロード</span></li>
+      <li><span class="old">エンジン /MT、スクリプト /MD</span><span class="arw">→</span><span class="new">全ターゲット /MD に統一</span></li>
+    </ul>
+    <p class="note">新しい設計の図は <a href="new-engine.html">Kagura 3D構成図</a> にあります。</p>
+  </section>
+
+  <section>
+    <h3 class="sec-title">色の意味</h3>
+    <div class="legend">
+      <div style="--c:var(--c-engine)"><i></i>エンジン(DLL内)</div>
+      <div style="--c:var(--c-runtime)"><i></i>シーン / ゲーム</div>
+      <div style="--c:var(--c-editor)"><i></i>Editor(DLL内)</div>
+      <div style="--c:var(--c-data)"><i></i>SceneRoot/ のファイル</div>
+      <div style="--c:var(--c-ai)"><i></i>AI(IZANAGI)</div>
+      <div style="--c:var(--c-hw)"><i></i>外部ツール / GPU</div>
+    </div>
+  </section>
+</aside>
+
+<div id="hint">ドラッグで回転 · 右ドラッグで移動 · ホイールでズーム</div>
+
+<script type="importmap">
+{ "imports": {
+  "three": "https://cdn.jsdelivr.net/npm/three@0.160.0/build/three.module.js",
+  "three/addons/": "https://cdn.jsdelivr.net/npm/three@0.160.0/examples/jsm/"
+} }
+</script>
+<script type="module">
+import * as THREE from 'three';
+import { OrbitControls } from 'three/addons/controls/OrbitControls.js';
+import { CSS2DRenderer, CSS2DObject } from 'three/addons/renderers/CSS2DRenderer.js';
+import { RoundedBoxGeometry } from 'three/addons/geometries/RoundedBoxGeometry.js';
+
+const CSSV = getComputedStyle(document.documentElement);
+const cv = n => CSSV.getPropertyValue(n).trim();
+const CAT = {
+  engine: cv('--c-engine'), runtime: cv('--c-runtime'), editor: cv('--c-editor'),
+  data: cv('--c-data'), ai: cv('--c-ai'), hw: cv('--c-hw'),
+};
+const CAT_NAME = { engine: 'エンジン本体(DLL内)', runtime: 'シーン / ゲーム', editor: 'Editor(DLL内)', data: 'SceneRoot/ フォルダ', ai: 'AI(IZANAGI)', hw: '外部ツール / GPU' };
+
+// ---------------- data ----------------
+const NODES = [
+  // ---- 基盤 (y=0)
+  { id: 'input', name: 'Input / EngineProc', sub: 'Win32 入力 + IME', cat: 'engine', pos: [-4.5, 0, 0],
+    desc: ['キーボード・マウス入力を毎フレーム更新(UpdateInput)', 'EngineProc で IME の確定文字列を UTF-8 に変換して ImGui に渡す', 'ウィンドウのリサイズも DLL 側で処理'] },
+  { id: 'system', name: 'System (DX11)', sub: 'デバイス / ステート / HDR', cat: 'engine', pos: [0, 0, 0],
+    desc: ['D3D11CreateDeviceAndSwapChain(Feature Level 11.1〜9.1)', 'ラスタライザ・ブレンド・サンプラのステートを起動時にまとめて生成', 'HDR レンダーターゲットとトーンマッピング'] },
+  { id: 'sound', name: 'SoundManager', sub: '音声リソースのキャッシュ', cat: 'engine', pos: [4.5, 0, 0],
+    desc: ['音声リソースを名前で読み込み、weak_ptr でキャッシュ', '使われなくなったものを GarbageCollect で解放'] },
+  { id: 'gpu', name: 'GPU', sub: 'DirectX 11', cat: 'hw', pos: [0, -2.2, 0], shape: 'gpu',
+    desc: ['DX11 のイミディエイトコンテキストで描画'] },
+
+  // ---- マネージャー群 (y=1.6)
+  { id: 'assetmgr', name: 'AssetManager', sub: '1秒ごとに監視 / キャッシュ', cat: 'engine', pos: [-4.5, 2.3, 1.6],
+    desc: ['別スレッドで Assets/ を 1 秒ごとに走査し、追加・変更・削除を記録', '読み込んだデータをメモリにキャッシュし、各マネージャーへ渡す', 'FromSource(元ファイル)と FromArchive(.PixAssets)の 2 モード'] },
+  { id: 'model', name: 'ModelManager', sub: 'Assimp', cat: 'engine', pos: [-1.5, 2.3, 1.6],
+    desc: ['AssetManager のキャッシュからモデルを取り出し、Assimp で読み込む', '実行時に元ファイル(.fbx など)を直接読む方式'] },
+  { id: 'texture', name: 'TextureManager', sub: 'DirectXTex', cat: 'engine', pos: [1.5, 2.3, 1.6],
+    desc: ['AssetManager のキャッシュから画像を取り出し、DirectXTex で読み込む'] },
+  { id: 'shader', name: 'ShaderManager', sub: 'D3DCompile + リフレクション', cat: 'engine', pos: [4.5, 2.3, 1.6],
+    desc: ['D3DCompileFromFile でコンパイル。VS_ / PS_ の接頭辞で種類を判別', 'D3DReflect で cbuffer の変数名・オフセットを解析', '変数名を指定するだけで正しい位置に書き込める', 'コンパイルエラーはメッセージボックスで通知'] },
+  { id: 'setting', name: 'SettingManager', sub: 'config.json / パス', cat: 'engine', pos: [-4.5, 2.3, -1.6],
+    desc: ['config.json を読み、Assets・Script・Shader・Scene などのパスを提供'] },
+  { id: 'scriptmgr', name: 'ScriptManager', sub: 'cl.exe ビルド / DLL 管理', cat: 'engine', pos: [-1.5, 2.3, -1.6],
+    desc: ['スクリプト 1 本につき DLL 1 つ。同じスクリプトのインスタンスは 1 つの DLL を共有', '.cpp / .h のタイムスタンプが DLL より新しければ再ビルド', 'ビルドログは Inspector で確認できる'] },
+  { id: 'effect', name: 'EffectManager', sub: 'Effekseer (DX11)', cat: 'engine', pos: [1.5, 2.3, -1.6],
+    desc: ['Effekseer と EffekseerRendererDX11 を使用', '独自のローダーで AssetManager からエフェクトを読む'] },
+  { id: 'mainframe', name: 'MainFrame', sub: '初期化 / 更新 / 描画の統括', cat: 'engine', pos: [4.5, 2.3, -1.6],
+    desc: ['Init で全マネージャーを順に初期化', 'Update で入力と EngineFrame を更新', 'Draw でレイヤーごとの描画と最終合成を行う'] },
+
+  // ---- シーン / 描画 (y=3.2)
+  { id: 'scene', name: 'Scene', sub: 'SceneManger / レイヤー', cat: 'runtime', pos: [-4.5, 4.6, 1.6],
+    desc: ['Object の一覧とレイヤー設定(最大 10)を持つ', 'Bullet の物理ワールドを所有', '.scene ファイルにテキストで保存・読込'] },
+  { id: 'components', name: 'Object + Component', sub: '11 種類', cat: 'runtime', pos: [-1.5, 4.6, 1.6],
+    desc: ['Camera / Light / Image / Script / Model / Animation / RigidBody / BoxCollision / CapsuleCollision / Animator2D / Effect', 'EditUpdate と InGameUpdate を分けて持つ', 'SaveToFile / LoadFromFile で自分の値を保存'] },
+  { id: 'bullet', name: 'Bullet Physics', sub: 'btDiscreteDynamicsWorld', cat: 'runtime', pos: [1.5, 4.6, 1.6],
+    desc: ['stepSimulation を固定タイムステップで実行', 'Raycast / SphereCast を API として公開'] },
+  { id: 'layers', name: 'Layer RT', sub: '最大 10 枚', cat: 'runtime', pos: [4.5, 4.6, 1.6],
+    desc: ['レイヤーごとに別のレンダーターゲットへ描く', 'UI などを Z バッファに関係なく常に手前に出せる', 'レイヤーごとに表示・不透明度・ポストエフェクトを設定'] },
+  { id: 'gbuffer', name: 'GBuffer', sub: 'Geometry パス', cat: 'engine', pos: [-4.5, 4.6, -1.6],
+    desc: ['レイヤーごとに GBuffer を持つ', '法線・深度などを書き込む'] },
+  { id: 'lighting', name: 'LightingPass', sub: 'ディファード + SSAO', cat: 'engine', pos: [-1.5, 4.6, -1.6],
+    desc: ['GBuffer とライト配列からライティングを計算', 'シャドウマップと SSAO の結果を使う'] },
+  { id: 'forward', name: 'Forward + Effect', sub: '半透明 / Effekseer', cat: 'engine', pos: [1.5, 4.6, -1.6],
+    desc: ['ディファードに乗らないものを Forward で描く', 'Effekseer のエフェクトを同じレイヤーに描く'] },
+  { id: 'post', name: 'PostEffect / 合成', sub: 'Bloom・SSAO・Fog など', cat: 'engine', pos: [4.5, 4.6, -1.6],
+    desc: ['Bloom / SSAO / ColorGrading / Pixelate / AtmosphericFog', 'トーンマッピング後、レイヤーを不透明度付きで重ねる'] },
+
+  // ---- Editor / API / AI (y=4.8, DLL内)
+  { id: 'editor', name: 'EngineFrame', sub: 'ImGui Editor', cat: 'editor', pos: [-4.5, 6.9, 1.6],
+    desc: ['GameView / Hierarchy / Inspector / Content / Prefab / Layer ウィンドウ', '再生中は PlayUpdate、停止中は EditUpdate を呼び分ける', 'マウスだけで操作できる設計'] },
+  { id: 'anim2d', name: 'Animator2D', sub: 'Timeline / Easing', cat: 'editor', pos: [-1.5, 6.9, 1.6],
+    desc: ['動画編集ソフトのようなタイムラインで 2D アニメーションを作る', 'ベジェ曲線でイージングを編集', 'ソフトウェアモードを切り替えて専用画面で編集'] },
+  { id: 'chat', name: 'ChatWindow', sub: 'AIチャット(ImGui)', cat: 'ai', pos: [1.5, 6.9, 1.6],
+    desc: ['Editor の右側にドッキングされるチャット画面', '一定間隔で IZANAGI の応答を確認して表示', 'コード上で IZANAGI を使っているのはこのウィンドウのみ'] },
+  { id: 'izanagi', name: 'IZANAGI', sub: 'llama.cpp を内蔵', cat: 'ai', pos: [4.5, 6.9, 1.6], shape: 'orb',
+    desc: ['オフライン LLM を DLL 内で直接推論(同じプロセス)', 'ctx 8192 / 4 スレッド / GPU 2 層で起動', '入力キューと別スレッドの ProcessingLoop で非同期に処理', 'ペルソナとシステムプロンプト、会話履歴を管理'] },
+  { id: 'startup', name: 'StartUp', sub: 'SoftInit / SoftUpdate …', cat: 'engine', pos: [-4.5, 6.9, -1.6],
+    desc: ['extern "C" で SoftInit / SoftUpdate / SoftDraw / SoftShutDown / IsEngineRunning / EngineProc を公開', 'Exe.exe から GetProcAddress で呼ばれる入口'] },
+  { id: 'api', name: 'PIXEON_API', sub: 'C API(ハンドル)', cat: 'engine', pos: [-1.5, 6.9, -1.6],
+    desc: ['scene / object / component を void* ハンドルで扱う C API', '戻り値は APIResult(PN_SUCCESS など)', '構造体は #pragma pack(1) で境界をそろえる'] },
+  { id: 'wrapper', name: 'Pixeon2_API', sub: 'C++ ラッパー', cat: 'engine', pos: [1.5, 6.9, -1.6],
+    desc: ['C API を Object / Camera / Rigidbody などのクラスで包む', 'GetComponent<T> を明示的特殊化で公開', 'スクリプトはこの層からエンジンを操作'] },
+
+  // ---- DLL の外 (y=7)
+  { id: 'exe', name: 'Exe.exe', sub: 'ウィンドウ作成のみ', cat: 'runtime', pos: [-4.5, 9.5, -1.6],
+    desc: ['ウィンドウクラスを登録してメッセージループを回す', 'LoadLibrary("Pixeon_Engine.dll") して関数を GetProcAddress で取得', 'ウィンドウメッセージは EngineProc に先に渡す'] },
+  { id: 'scriptdll', name: 'Script DLL × N', sub: 'スクリプトごと', cat: 'runtime', pos: [-1.5, 9.5, -1.6],
+    desc: ['CreateScriptInstance / DestroyScriptInstance を公開', 'IScript を継承(BeginPlay / Update / FixedUpdate / EndPlay / 衝突コールバック)', 'エンジンは /MT、スクリプトは /MD でビルド。生成と破棄は DLL 側の関数で行う'] },
+  { id: 'cl', name: 'cl.exe', sub: 'Visual Studio 2022', cat: 'hw', pos: [1.5, 9.5, -1.6],
+    desc: ['vcvars64.bat を探して呼び出し、cl /LD /EHsc /MD でビルド', 'Pixeon_Engine.lib とリンク。vcpkg があれば include を追加'] },
+  { id: 'packtool', name: 'Asset packaging tool', sub: '別 exe', cat: 'hw', pos: [4.5, 9.5, -1.6],
+    desc: ['Assets を 1 つの .PixAssets にまとめるツール', 'cmd プロジェクトで読み込みテスト(AssetsPackTest)'] },
+
+  // ---- SceneRoot/ (右の棚)
+  { id: 'assets', name: 'Assets/', sub: '.fbx .png など', cat: 'data', pos: [10.6, 2, 2.4], shape: 'disk',
+    desc: ['モデル・テクスチャ・エフェクトなどの元ファイル'] },
+  { id: 'src', name: 'Script/Source', sub: '.cpp / .h', cat: 'data', pos: [10.6, 2, 0.8], shape: 'disk',
+    desc: ['スクリプトのソース。保存するとホットリロード', 'Include/IScript.cpp も一緒にコンパイルされる'] },
+  { id: 'hlsl', name: 'Shader/', sub: 'hlsl → cso', cat: 'data', pos: [10.6, 2, -0.8], shape: 'disk',
+    desc: ['hlsl/ にソース、cso/ にコンパイル結果'] },
+  { id: 'scenefile', name: 'Scene/', sub: '.scene / config', cat: 'data', pos: [10.6, 2, -2.4], shape: 'disk',
+    desc: ['シーンごとのテキストファイルと SceneConfig'] },
+  { id: 'config', name: 'config.json', sub: 'パス設定', cat: 'data', pos: [10.6, 5.2, 1.6], shape: 'disk',
+    desc: ['各フォルダのパスなど、エンジン全体の設定'] },
+  { id: 'gguf', name: 'qwen2.5-7b.gguf', sub: 'Tool/IZANAGI', cat: 'data', pos: [10.6, 5.2, 0], shape: 'disk',
+    desc: ['qwen2.5-7b-instruct の Q3_K_M 量子化モデル', '起動時に IZANAGI が読み込む'] },
+  { id: 'pixassets', name: 'assets.PixAssets', sub: 'PIXPAK 形式', cat: 'data', pos: [10.6, 5.2, -1.6], shape: 'disk',
+    desc: ['ヘッダに magic "PIXPAK"・ファイル数・TOC の位置を持つ', '圧縮(LZ4)・暗号化・ストリーミングなどのフラグを定義', 'Exe/ フォルダに同梱されている'] },
+];
+const NODE = Object.fromEntries(NODES.map(n => [n.id, n]));
+
+const FLOWS = [
+  { id: 'boot', name: '起動', color: '#5AA9F0', steps: [
+    ['exe', 'DLL を読み込む', 'LoadLibrary で Pixeon_Engine.dll を読み、SoftInit などを GetProcAddress で取得'],
+    ['startup', 'SoftInit', 'ウィンドウハンドルと画面サイズを渡して MainFrame::Init を呼ぶ'],
+    ['mainframe', '初期化開始', 'ここから下の順番で各システムを立ち上げる'],
+    ['izanagi', 'AI を起動', '最初に IZANAGI が gguf モデルを読み込む'],
+    ['setting', '設定を読む', 'config.json から各フォルダのパスを取得'],
+    ['system', 'DX11 初期化', 'デバイス・スワップチェーン・HDR パイプラインを作る'],
+    ['assetmgr', '監視を開始', 'Assets/ を 1 秒間隔で走査する(FromSource モード)'],
+    ['layers', 'レイヤー準備', 'レイヤー数ぶんの RT・GBuffer・LightingPass を作る'],
+    ['shader', 'シェーダ準備', 'ShaderManager を初期化'],
+    ['scriptmgr', 'スクリプト登録', 'DLL フォルダの .dll をすべて登録'],
+    ['editor', 'Editor 起動', 'EngineFrame と Animator2D の GUI を初期化'],
+  ]},
+  { id: 'frame', name: '1フレーム更新', color: '#34C3A0', steps: [
+    ['exe', 'メッセージループ', '毎フレーム SoftUpdate と SoftDraw を呼ぶ'],
+    ['startup', 'SoftUpdate', 'MainFrame::Update へ'],
+    ['mainframe', 'フレーム制御', '目標 FPS に合わせて更新するか判定'],
+    ['input', '入力更新', 'UpdateInput でキーとマウスを読む'],
+    ['editor', '再生 / 編集の切替', '再生中は最初だけ BeginPlay、以後 PlayUpdate。停止中は EditUpdate'],
+    ['scene', 'シーン更新', 'シーン内の Object を順に更新'],
+    ['components', 'Component 更新', 'InGameUpdate とスクリプトの Update'],
+    ['bullet', '物理', 'stepSimulation を固定タイムステップで実行'],
+    ['chat', 'チャット確認', 'ChatWindow::Update で AI の応答を確認'],
+  ]},
+  { id: 'draw', name: '描画', color: '#7FB8F5', steps: [
+    ['mainframe', 'SoftDraw', 'MainFrame::Draw が描画を統括'],
+    ['layers', 'レイヤーごとに', '最大 10 枚をループ。非表示のレイヤーは飛ばす'],
+    ['scene', 'ライトと影', 'PrepareShadowAndLights でライト配列とシャドウマップを準備'],
+    ['gbuffer', 'Geometry パス', 'GBuffer に法線・深度などを書く'],
+    ['lighting', 'Lighting パス', 'ディファードライティング。SSAO が有効なら AO を使う'],
+    ['forward', 'Forward + エフェクト', 'Forward で描くものと Effekseer を同じレイヤーへ'],
+    ['post', '合成', 'トーンマッピング後、レイヤーごとのポストエフェクトを掛けて重ねる'],
+    ['system', '最終出力', '最終レンダーターゲットをスワップチェーンへ'],
+    ['gpu', '表示', 'GPU が画面に出す'],
+  ]},
+  { id: 'asset', name: 'アセット', color: '#E3A63E', steps: [
+    ['assets', 'ファイルを置く', 'Assets/ に .fbx や .png を入れる'],
+    ['assetmgr', '差分を検知', '1 秒ごとの走査で追加・変更を見つけ、データをメモリにキャッシュ'],
+    ['model', 'モデル読込', 'キャッシュから取り出して Assimp で読み込む'],
+    ['texture', 'テクスチャ読込', 'DirectXTex で読み込む'],
+    ['components', 'Component が取得', 'ModelRender などが名前で取得する'],
+    ['gbuffer', '描画', 'Geometry パスで描かれる'],
+  ]},
+  { id: 'shader', name: 'HLSL', color: '#F0CF5A', steps: [
+    ['hlsl', '.hlsl を保存', 'Shader/hlsl に置く。VS_ / PS_ の接頭辞で種類が決まる'],
+    ['shader', 'D3DCompile', 'D3DCompileFromFile でコンパイル。失敗するとメッセージボックス'],
+    ['hlsl', '.cso を保存', 'Shader/cso にバイトコードを書き出す'],
+    ['shader', 'リフレクション', 'D3DReflect で cbuffer の変数名とオフセットを取得'],
+    ['components', '変数名で設定', 'SetCBufferVariable に名前を渡すだけで正しい位置へ書く'],
+    ['system', 'バインド', 'CommitAndBind で GPU に送る'],
+  ]},
+  { id: 'hot', name: 'ホットリロード', color: '#A895F5', steps: [
+    ['src', '.cpp / .h を保存', 'Script/Source のファイルを更新'],
+    ['scriptmgr', '変更を検知', 'タイムスタンプが前回と違い、DLL より新しいかを比べる'],
+    ['components', '旧インスタンス破棄', 'EndPlay を呼び、DLL 側の DestroyScriptInstance で削除'],
+    ['scriptmgr', 'FreeLibrary', 'ビルドの前に旧 DLL を解放してロックを外す'],
+    ['cl', 'cl.exe でビルド', 'vcvars64 を呼び、cl /LD /MD で Pixeon_Engine.lib とリンク'],
+    ['scriptdll', 'LoadLibrary', '新しい DLL の CreateScriptInstance で作り直す'],
+    ['components', 'BeginPlay', '親 Object と Scene を設定してから BeginPlay。値の退避は Inspector の Reload ボタン経由のときに行う'],
+    ['wrapper', 'API で操作', 'スクリプトは C++ ラッパー経由でエンジンを触る'],
+    ['api', 'C API', 'ラッパーの中身は void* ハンドルの C API'],
+  ]},
+  { id: 'ai', name: 'AI チャット', color: '#EE7D5E', steps: [
+    ['chat', '質問を入力', 'Editor 右側の AI チャット(IZANAGI)に入力'],
+    ['izanagi', 'キューに積む', '入力キューに入れ、別スレッドの ProcessingLoop が取り出す'],
+    ['gguf', '推論', 'qwen2.5-7b(Q3_K_M)。temperature 0.8 / top-k 40 / top-p 0.9'],
+    ['izanagi', '応答を保持', '会話履歴とシステムプロンプト(ペルソナ)を管理'],
+    ['chat', '表示', '一定間隔で応答を確認して表示'],
+  ]},
+  { id: 'pack', name: '配布パック', color: '#C9A06A', steps: [
+    ['assets', '元ファイル', '配布したいアセット'],
+    ['packtool', 'パック化', 'Asset packaging tool.exe でまとめる'],
+    ['pixassets', 'assets.PixAssets', 'PIXPAK ヘッダ + TOC の 1 ファイル'],
+    ['assetmgr', 'アーカイブ読込', 'LoadMode::FromArchive で読む(現在の初期化コードは FromSource)'],
+    ['exe', '同梱', 'Exe/ フォルダに assets.PixAssets が置かれている'],
+  ]},
+];
+
+// ---------------- three setup ----------------
+const stage = document.getElementById('stage');
+const panel = document.getElementById('panel');
+const renderer = new THREE.WebGLRenderer({ antialias: true });
+renderer.setPixelRatio(Math.min(window.devicePixelRatio, 2));
+renderer.setClearColor(cv('--bg'));
+stage.prepend(renderer.domElement);
+
+const labelRenderer = new CSS2DRenderer({ element: document.getElementById('labels') });
+
+const scene = new THREE.Scene();
+scene.fog = new THREE.Fog(cv('--bg'), 26, 58);
+const camera = new THREE.PerspectiveCamera(38, 1, 0.1, 200);
+const HOME = { pos: new THREE.Vector3(19, 13.5, 22.5), target: new THREE.Vector3(2.8, 3.7, -0.3) };
+camera.position.copy(HOME.pos);
+
+const controls = new OrbitControls(camera, renderer.domElement);
+controls.target.copy(HOME.target);
+controls.enableDamping = true;
+controls.dampingFactor = 0.08;
+controls.minDistance = 7;
+controls.maxDistance = 45;
+controls.maxPolarAngle = Math.PI * 0.49;
+
+scene.add(new THREE.HemisphereLight(0xbcd4ff, 0x0b0f17, 1.0));
+const sun = new THREE.DirectionalLight(0xffffff, 1.4);
+sun.position.set(6, 14, 9);
+scene.add(sun);
+
+// ground grid
+const grid = new THREE.GridHelper(40, 40, 0x1a2539, 0x111a2a);
+grid.position.y = -2.9;
+scene.add(grid);
+
+function addLabel(html, pos, cls, color) {
+  const el = document.createElement('div');
+  el.className = cls;
+  el.innerHTML = html;
+  el.style.setProperty('--c', color);
+  const obj = new CSS2DObject(el);
+  obj.position.copy(pos);
+  scene.add(obj);
+  return el;
+}
+
+function plate(x0, x1, z0, z1, y, color, opacity = 0.35) {
+  const g = new THREE.BoxGeometry(x1 - x0, 0.06, z1 - z0);
+  const m = new THREE.MeshStandardMaterial({ color, transparent: true, opacity, roughness: 0.9 });
+  const mesh = new THREE.Mesh(g, m);
+  mesh.position.set((x0 + x1) / 2, y, (z0 + z1) / 2);
+  scene.add(mesh);
+  const e = new THREE.LineSegments(new THREE.EdgesGeometry(g), new THREE.LineBasicMaterial({ color, transparent: true, opacity: 0.55 }));
+  e.position.copy(mesh.position);
+  scene.add(e);
+}
+
+// Pixeon_Engine.dll layers
+plate(-6.2, 6.2, -2.7, 2.7, -0.45, 0x2b4a78, 0.26);
+plate(-6.2, 6.2, -2.7, 2.7, 1.85, 0x2b4a78, 0.26);
+plate(-6.2, 6.2, -2.7, 2.7, 4.15, 0x2b4a78, 0.26);
+plate(-6.2, 6.2, -2.7, 2.7, 6.45, 0x4a3f8c, 0.3);
+addLabel('基盤', new THREE.Vector3(-5.8, -0.42, 2.7), 'zone', CAT.engine);
+addLabel('マネージャー群', new THREE.Vector3(-5.5, 1.88, 2.7), 'zone', CAT.engine);
+addLabel('シーン / 描画', new THREE.Vector3(-5.55, 4.18, 2.7), 'zone', CAT.engine);
+addLabel('Editor / API / AI', new THREE.Vector3(-5.4, 6.48, 2.7), 'zone', CAT.editor);
+
+// the all-in-one DLL cage
+{
+  const g = new THREE.BoxGeometry(13.4, 8.4, 6.2);
+  const pos = new THREE.Vector3(0, 3.4, 0);
+  const faces = new THREE.Mesh(g, new THREE.MeshBasicMaterial({ color: 0x4c9be8, transparent: true, opacity: 0.035, depthWrite: false }));
+  faces.position.copy(pos);
+  scene.add(faces);
+  const edges = new THREE.LineSegments(new THREE.EdgesGeometry(g), new THREE.LineBasicMaterial({ color: 0x4c9be8, transparent: true, opacity: 0.85 }));
+  edges.position.copy(pos);
+  scene.add(edges);
+  addLabel('Pixeon_Engine.dll(全部入り)', new THREE.Vector3(3.9, -0.8, 3.1), 'zone big', CAT.engine);
+}
+
+// outside: executables & tools
+plate(-6.2, 6.2, -2.7, -0.5, 9.05, 0x3a4658, 0.3);
+addLabel('DLL の外(実行ファイル / ツール)', new THREE.Vector3(0, 9.08, -0.5), 'zone', CAT.hw);
+// SceneRoot shelves
+plate(9.6, 11.6, -3.3, 3.3, 1.75, 0x7a5717, 0.3);
+plate(9.6, 11.6, -2.5, 2.5, 4.95, 0x7a5717, 0.3);
+addLabel('SceneRoot/', new THREE.Vector3(10.6, 1.78, 3.3), 'zone big', CAT.data);
+addLabel('ハードウェア', new THREE.Vector3(-2.4, -2.5, 0), 'zone', CAT.hw);
+
+function dashed(a, b, color) {
+  const g = new THREE.BufferGeometry().setFromPoints([a, b]);
+  const l = new THREE.Line(g, new THREE.LineDashedMaterial({ color, dashSize: 0.18, gapSize: 0.14, transparent: true, opacity: 0.7 }));
+  l.computeLineDistances();
+  scene.add(l);
+}
+dashed(new THREE.Vector3(-4.5, 9.0, -1.6), new THREE.Vector3(-4.5, 7.6, -1.6), 0x4c9be8);
+dashed(new THREE.Vector3(-1.5, 9.0, -1.6), new THREE.Vector3(-1.5, 7.6, -1.6), 0x4c9be8);
+dashed(new THREE.Vector3(0, -0.8, 0), new THREE.Vector3(0, -1.9, 0), 0x9aa3b2);
+
+// ---------------- nodes ----------------
+const pickables = [];
+const roundGeo = new RoundedBoxGeometry(1.9, 0.42, 1.05, 3, 0.09);
+const gpuGeo = new RoundedBoxGeometry(2.6, 0.55, 1.4, 3, 0.08);
+const diskGeo = new THREE.CylinderGeometry(0.72, 0.72, 0.3, 40);
+const orbGeo = new THREE.IcosahedronGeometry(0.52, 1);
+
+for (const n of NODES) {
+  const color = new THREE.Color(CAT[n.cat]);
+  const geo = n.shape === 'disk' ? diskGeo : n.shape === 'orb' ? orbGeo : n.shape === 'gpu' ? gpuGeo : roundGeo;
+  const mat = new THREE.MeshStandardMaterial({
+    color, roughness: 0.45, metalness: 0.15, emissive: color, emissiveIntensity: 0.18,
+    transparent: true, opacity: 1, flatShading: n.shape === 'orb',
+  });
+  const mesh = new THREE.Mesh(geo, mat);
+  mesh.position.set(...n.pos);
+  mesh.userData.id = n.id;
+  scene.add(mesh);
+  pickables.push(mesh);
+  n.mesh = mesh;
+  n.v = mesh.position.clone();
+  const lift = n.shape === 'orb' ? 0.78 : n.shape === 'disk' ? 0.5 : 0.55;
+  n.el = addLabel(`${n.name}<small>${n.sub}</small>`, n.v.clone().add(new THREE.Vector3(0, lift, 0)), 'lbl', CAT[n.cat]);
+  n.el.tabIndex = 0;
+  n.el.setAttribute('role', 'button');
+  n.el.setAttribute('aria-label', `${n.name}の説明を表示`);
+  n.el.addEventListener('click', e => { e.stopPropagation(); showDetail(n.id); });
+  n.el.addEventListener('keydown', e => { if (e.key === 'Enter' || e.key === ' ') { e.preventDefault(); showDetail(n.id); } });
+}
+
+// ---------------- edges ----------------
+function makeCurve(a, b) {
+  const p0 = NODE[a].v, p2 = NODE[b].v;
+  const dir = p2.clone().sub(p0);
+  const dist = dir.length();
+  const mid = p0.clone().add(p2).multiplyScalar(0.5);
+  mid.y += 0.45 + dist * 0.1;
+  let perp = new THREE.Vector3(-dir.z, 0, dir.x);
+  if (perp.lengthSq() < 1e-4) perp.set(1, 0, 0);
+  perp.normalize().multiplyScalar(a < b ? 0.35 : -0.35);
+  mid.add(perp);
+  return new THREE.QuadraticBezierCurve3(p0.clone(), mid, p2.clone());
+}
+
+const glowTex = (() => {
+  const c = document.createElement('canvas'); c.width = c.height = 64;
+  const g = c.getContext('2d');
+  const grd = g.createRadialGradient(32, 32, 0, 32, 32, 32);
+  grd.addColorStop(0, 'rgba(255,255,255,1)');
+  grd.addColorStop(0.25, 'rgba(255,255,255,0.55)');
+  grd.addColorStop(1, 'rgba(255,255,255,0)');
+  g.fillStyle = grd; g.fillRect(0, 0, 64, 64);
+  return new THREE.CanvasTexture(c);
+})();
+function makeSpark(color, size) {
+  const s = new THREE.Sprite(new THREE.SpriteMaterial({ map: glowTex, color, transparent: true, blending: THREE.AdditiveBlending, depthWrite: false }));
+  s.scale.setScalar(size);
+  scene.add(s);
+  return s;
+}
+
+for (const f of FLOWS) {
+  f.segs = [];
+  for (let i = 0; i < f.steps.length - 1; i++) {
+    const curve = makeCurve(f.steps[i][0], f.steps[i + 1][0]);
+    const tube = new THREE.Mesh(new THREE.TubeGeometry(curve, 48, 0.028, 6, false),
+      new THREE.MeshBasicMaterial({ color: f.color, transparent: true, opacity: 0.2, depthWrite: false }));
+    scene.add(tube);
+    const amb = makeSpark(f.color, 0.42);
+    f.segs.push({ curve, tube, amb, off: Math.random() });
+  }
+}
+const packet = makeSpark('#ffffff', 1.1);
+const packetCore = new THREE.Mesh(new THREE.SphereGeometry(0.11, 16, 12), new THREE.MeshBasicMaterial({ color: 0xffffff }));
+scene.add(packetCore);
+const trail = Array.from({ length: 6 }, (_, i) => makeSpark('#ffffff', 0.5 - i * 0.06));
+
+// ---------------- UI ----------------
+const flowsEl = document.getElementById('flows');
+const stepsEl = document.getElementById('steps');
+const stepsTitle = document.getElementById('stepsTitle');
+const overviewEl = document.getElementById('overview');
+const controlsEl = document.getElementById('controls');
+const playBtn = document.getElementById('play');
+const detailEl = document.getElementById('detail');
+const cardEl = document.getElementById('card');
+
+const reduced = window.matchMedia('(prefers-reduced-motion: reduce)').matches;
+const state = { flow: null, step: 0, phase: 'hold', t: 0, playing: !reduced, selected: null };
+
+function chip(id, name, color) {
+  const b = document.createElement('button');
+  b.type = 'button'; b.className = 'chip'; b.dataset.id = id;
+  b.style.setProperty('--c', color);
+  b.innerHTML = color ? `<i></i>${name}` : name;
+  b.addEventListener('click', () => setFlow(id === 'all' ? null : id));
+  flowsEl.appendChild(b);
+}
+chip('all', '全体', '');
+FLOWS.forEach(f => chip(f.id, f.name, f.color));
+
+function setFlow(id) {
+  state.flow = id ? FLOWS.find(f => f.id === id) : null;
+  state.step = 0; state.phase = 'hold'; state.t = 0;
+  [...flowsEl.children].forEach(b => b.setAttribute('aria-pressed', String((b.dataset.id === 'all' && !id) || b.dataset.id === id)));
+  stepsEl.innerHTML = '';
+  if (state.flow) {
+    const f = state.flow;
+    stepsTitle.textContent = f.name;
+    stepsEl.style.setProperty('--c', f.color);
+    f.steps.forEach(([nid, title, text], i) => {
+      const li = document.createElement('li');
+      li.tabIndex = 0;
+      li.innerHTML = `<b>${title}</b><span>${NODE[nid].name} — ${text}</span>`;
+      li.addEventListener('click', () => jump(i));
+      li.addEventListener('keydown', e => { if (e.key === 'Enter' || e.key === ' ') { e.preventDefault(); jump(i); } });
+      stepsEl.appendChild(li);
+    });
+  } else {
+    stepsTitle.textContent = '全体';
+  }
+  stepsEl.hidden = !state.flow;
+  overviewEl.hidden = !!state.flow;
+  controlsEl.style.display = state.flow ? '' : 'none';
+  syncPlay();
+  applyHighlight();
+}
+function jump(i) {
+  if (!state.flow) return;
+  state.step = Math.max(0, Math.min(state.flow.steps.length - 1, i));
+  state.phase = 'hold'; state.t = 0;
+  applyHighlight();
+}
+function syncPlay() { playBtn.textContent = state.playing ? '一時停止' : '再生'; }
+playBtn.addEventListener('click', () => { state.playing = !state.playing; syncPlay(); });
+document.getElementById('prev').addEventListener('click', () => jump(state.step - 1));
+document.getElementById('next').addEventListener('click', () => jump(state.step + 1));
+document.getElementById('reset').addEventListener('click', () => {
+  camera.position.copy(HOME.pos); controls.target.copy(HOME.target); fitCamera();
+});
+
+function showDetail(id) {
+  const n = NODE[id];
+  state.selected = id;
+  cardEl.style.setProperty('--c', CAT[n.cat]);
+  cardEl.innerHTML = `<div class="k">${CAT_NAME[n.cat]}</div><h2>${n.name}</h2><p class="sub">${n.sub}</p><ul>${n.desc.map(d => `<li>${d}</li>`).join('')}</ul>`;
+  detailEl.hidden = false;
+  applyHighlight();
+  if (window.matchMedia('(max-width: 720px)').matches) detailEl.scrollIntoView({ block: 'nearest', behavior: reduced ? 'auto' : 'smooth' });
+}
+
+function applyHighlight() {
+  const f = state.flow;
+  const inFlow = f ? new Set(f.steps.map(s => s[0])) : null;
+  const cur = f ? f.steps[state.step][0] : null;
+  for (const n of NODES) {
+    const active = !f || inFlow.has(n.id);
+    n.mesh.material.opacity = active ? 1 : 0.16;
+    n.mesh.material.depthWrite = active;
+    n.el.classList.toggle('dim', !active);
+    n.el.classList.toggle('on', n.id === cur || n.id === state.selected);
+  }
+  for (const fl of FLOWS) {
+    fl.segs.forEach((s, i) => {
+      const visible = !f || fl === f;
+      s.tube.visible = visible;
+      s.amb.visible = !f;
+      if (visible) s.tube.material.opacity = f ? (i < state.step ? 0.75 : 0.28) : 0.2;
+    });
+  }
+  packet.visible = packetCore.visible = !!f;
+  trail.forEach(t => t.visible = !!f);
+  if (f) {
+    packet.material.color.set(f.color);
+    trail.forEach(t => t.material.color.set(f.color));
+    [...stepsEl.children].forEach((li, i) => {
+      li.classList.toggle('cur', i === state.step);
+      li.classList.toggle('done', i < state.step);
+    });
+    const curLi = stepsEl.children[state.step];
+    if (curLi && panel.scrollHeight > panel.clientHeight) {
+      const pr = panel.getBoundingClientRect(), lr = curLi.getBoundingClientRect();
+      if (lr.top < pr.top || lr.bottom > pr.bottom) curLi.scrollIntoView({ block: 'nearest' });
+    }
+  }
+}
+
+// picking
+const ray = new THREE.Raycaster();
+const ndc = new THREE.Vector2();
+let downAt = null;
+renderer.domElement.addEventListener('pointerdown', e => { downAt = [e.clientX, e.clientY]; });
+renderer.domElement.addEventListener('pointerup', e => {
+  if (!downAt || Math.hypot(e.clientX - downAt[0], e.clientY - downAt[1]) > 5) return;
+  const r = renderer.domElement.getBoundingClientRect();
+  ndc.set(((e.clientX - r.left) / r.width) * 2 - 1, -((e.clientY - r.top) / r.height) * 2 + 1);
+  ray.setFromCamera(ndc, camera);
+  const hit = ray.intersectObjects(pickables, false)[0];
+  if (hit) showDetail(hit.object.userData.id);
+});
+
+// ---------------- layout ----------------
+function fitCamera() {
+  const w = stage.clientWidth, h = stage.clientHeight;
+  renderer.setSize(w, h);
+  labelRenderer.setSize(w, h);
+  camera.aspect = w / h;
+  const narrow = w <= 720;
+  // Pull back on tall / narrow screens so the whole stack fits.
+  const dist = HOME.pos.clone().sub(HOME.target).length() * (narrow ? Math.max(1.25, 1.55 / Math.max(camera.aspect, 0.45) * 0.62) : (camera.aspect < 1.3 ? 1.25 : 1));
+  const dirv = camera.position.clone().sub(controls.target).normalize();
+  camera.position.copy(controls.target).add(dirv.multiplyScalar(dist));
+  // Shift the scene away from the panel.
+  if (narrow) camera.setViewOffset(w, h, 0, panel.offsetHeight * 0.5, w, h);
+  else camera.setViewOffset(w, h, -(panel.offsetWidth + 16) * 0.5, 0, w, h);
+  camera.updateProjectionMatrix();
+}
+window.addEventListener('resize', fitCamera);
+
+// ---------------- loop ----------------
+const HOLD = 1.0, MOVE = 1.35, END_HOLD = 2.2;
+const clock = new THREE.Clock();
+let time = 0;
+function tick() {
+  const dt = Math.min(clock.getDelta(), 0.05);
+  time += dt;
+  const f = state.flow;
+
+  if (!f) {
+    for (const fl of FLOWS) fl.segs.forEach(s => {
+      const u = (time * 0.22 + s.off) % 1;
+      s.amb.position.copy(s.curve.getPoint(u));
+      s.amb.material.opacity = Math.sin(u * Math.PI) * 0.9;
+    });
+  } else {
+    if (state.playing) state.t += dt;
+    const last = f.steps.length - 1;
+    if (state.phase === 'hold') {
+      const lim = state.step === last ? END_HOLD : HOLD;
+      if (state.t >= lim) {
+        state.t = 0;
+        if (state.step === last) { state.step = 0; applyHighlight(); }
+        else state.phase = 'move';
+      }
+      const p = NODE[f.steps[state.step][0]].v;
+      packet.position.copy(p); packetCore.position.copy(p);
+      trail.forEach(t => t.position.copy(p));
+    }
+    if (state.phase === 'move') {
+      const seg = f.segs[state.step];
+      const u = Math.min(state.t / MOVE, 1);
+      const e = u < 0.5 ? 2 * u * u : 1 - Math.pow(-2 * u + 2, 2) / 2;
+      packet.position.copy(seg.curve.getPoint(e));
+      packetCore.position.copy(packet.position);
+      trail.forEach((t, i) => t.position.copy(seg.curve.getPoint(Math.max(0, e - (i + 1) * 0.035))));
+      if (u >= 1) { state.phase = 'hold'; state.t = 0; state.step++; applyHighlight(); }
+    }
+    packet.scale.setScalar(1.0 + Math.sin(time * 6) * 0.12);
+  }
+
+  // pulse current / selected node
+  for (const n of NODES) {
+    const cur = f && f.steps[state.step][0] === n.id;
+    const sel = state.selected === n.id;
+    const target = cur ? 0.75 + Math.sin(time * 5) * 0.2 : sel ? 0.55 : 0.18;
+    n.mesh.material.emissiveIntensity += (target - n.mesh.material.emissiveIntensity) * 0.15;
+    if (n.shape === 'orb') n.mesh.rotation.y += dt * 0.4;
+  }
+
+  controls.update();
+  renderer.render(scene, camera);
+  labelRenderer.render(scene, camera);
+  requestAnimationFrame(tick);
+}
+
+setFlow(null);
+fitCamera();
+requestAnimationFrame(fitCamera);
+tick();
+</script>
+
+</body>
+</html>
